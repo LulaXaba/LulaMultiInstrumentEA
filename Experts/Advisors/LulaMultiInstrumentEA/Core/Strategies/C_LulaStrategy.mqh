@@ -6,7 +6,7 @@
 #define LULA_STRATEGY_MQH
 
 #include "IStrategy.mqh"
-#include "..\C_BiasEngine.mqh"
+#include "../C_BiasEngine.mqh"
 
 class C_LulaStrategy : public IStrategy
   {
@@ -42,15 +42,20 @@ public:
    //--- Check Entry Signal
    virtual ENUM_SIGNAL_PATTERN CheckEntrySignal(void)
      {
-      if(m_marketAnalyzer == NULL) return PATTERN_NONE;
+      if(m_marketAnalyzer == NULL || m_biasEngine == NULL) return PATTERN_NONE;
+
+   //--- Check for Entry Signal
+   virtual ENUM_SIGNAL_PATTERN CheckEntrySignal(void)
+     {
+      if(m_marketAnalyzer == NULL || m_biasEngine == NULL) return PATTERN_NONE;
 
       // 1. Get Analysis from Market Analyzer
-      TimeframeAnalysis tfM15 = m_marketAnalyzer.GetAnalysisM15();
-      TimeframeAnalysis tfM30 = m_marketAnalyzer.GetAnalysisM30();
-      TimeframeAnalysis tfH1  = m_marketAnalyzer.GetAnalysisH1();
+      TimeframeAnalysis tfM15; tfM15 = m_marketAnalyzer.GetAnalysis(PERIOD_M15);
+      TimeframeAnalysis tfM30; tfM30 = m_marketAnalyzer.GetAnalysis(PERIOD_M30);
+      TimeframeAnalysis tfH1;  tfH1  = m_marketAnalyzer.GetAnalysis(PERIOD_H1);
 
       // 2. Determine Bias
-      BiasAnalysis bias = m_biasEngine.DetermineBias(tfM15, tfM30, tfH1);
+      BiasAnalysis bias = m_biasEngine.CalculateBias(tfM15, tfM30, tfH1);
 
       // 3. Look for Patterns matching the Bias
       // If Bullish Bias, look for Bullish Patterns on M15/M30

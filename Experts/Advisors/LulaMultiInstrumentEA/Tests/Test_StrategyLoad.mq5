@@ -35,9 +35,26 @@ void OnStart()
      }
    
    // Initialize Analyzer (using dummy values for test)
-   if(!analyzer.Initialize(_Symbol, config, 9, 2, 30, 20, 4, 30))
+   if(!analyzer.Initialize(_Symbol, config))
      {
       Print("FAILED: Could not initialize MarketAnalyzer");
+      delete config;
+      delete analyzer;
+      return;
+     }
+
+   // Add timeframes separately:
+   if(!analyzer.AddTimeframe(PERIOD_M15, 9, 14, 5, 26, 52, 5))
+     {
+      Print("FAILED: Could not add M15 timeframe");
+      delete config;
+      delete analyzer;
+      return;
+     }
+
+   if(!analyzer.AddTimeframe(PERIOD_H1, 9, 14, 5, 26, 52, 5))
+     {
+      Print("FAILED: Could not add H1 timeframe");
       delete config;
       delete analyzer;
       return;
