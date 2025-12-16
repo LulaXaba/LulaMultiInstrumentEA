@@ -172,6 +172,15 @@ public:
          m_results.lastSwingHigh = m_zigzag.GetLastSwingHigh(0);
          m_results.lastSwingLow = m_zigzag.GetLastSwingLow(0);
          m_results.swingDirection = m_zigzag.GetCurrentDirection();
+         
+         //--- Debug: Log ZigZag swing info periodically (every H1 bar)
+         if(m_timeframe == PERIOD_H1 && m_results.lastSwingHigh > 0)
+           {
+            Print(">>> ZigZag [H1]: SwingHigh=", m_results.lastSwingHigh, 
+                  " SwingLow=", m_results.lastSwingLow, 
+                  " Direction=", (m_results.swingDirection > 0 ? "BULLISH" : "BEARISH"),
+                  " Swings=", m_zigzag.GetRecentSwingsCount());
+           }
         }
       else
         {
@@ -205,6 +214,15 @@ public:
                m_results.prz_low = harmonicResult.prz_low;
                m_results.harmonicConfidence = harmonicResult.confidence;
                m_results.harmonicIsBullish = harmonicResult.isBullish;
+               
+               //--- Debug: Log harmonic pattern detection!
+               Print(">>> *** HARMONIC PATTERN DETECTED [", EnumToString(m_timeframe), "] ***");
+               Print("    Pattern: ", m_harmonicRecognizer.PatternToString(detected),
+                     " | Direction: ", (harmonicResult.isBullish ? "BULLISH" : "BEARISH"),
+                     " | Confidence: ", DoubleToString(harmonicResult.confidence * 100, 1), "%");
+               Print("    PRZ Zone: ", harmonicResult.prz_low, " - ", harmonicResult.prz_high);
+               Print("    X=", harmonicResult.X, " A=", harmonicResult.A, 
+                     " B=", harmonicResult.B, " C=", harmonicResult.C, " D=", harmonicResult.D);
               }
            }
         }
