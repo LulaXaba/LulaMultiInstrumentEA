@@ -1,0 +1,17 @@
+# MetaQuotes platform files (large binary files, not needed in version control)
+*.chr
+*.wnd
+*.log
+
+# Profiles directory (contains personal chart configurations)
+Profiles/
+
+# Logs directory
+Logs/
+
+# Precompiled MQL5 files
+*.ex5
+
+# Backup files
+*.bak
+*~
