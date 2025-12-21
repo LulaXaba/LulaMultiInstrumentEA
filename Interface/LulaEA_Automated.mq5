@@ -18,10 +18,13 @@
 #include "..\Execution\C_PositionSizer.mqh"
 
 //--- Inputs
-input double InpRiskPercent = 1.0;
+input double InpRiskPercent = 3.0;  // Aggressive Growth Mode
 input double InpMaxDailyLoss = 5.0;
 input int    InpFast_Length = 9;
 input int    InpSlow_Length = 26;
+input int    InpTrailStop = 50;           // Trailing Stop (pips) [SWING MODE]
+input int    InpBreakEvenTrigger = 25;    // Break Even Trigger (pips)
+input int    InpBreakEvenLock = 10;       // Break Even Lock (pips)
 
 //--- Global Objects
 C_MarketAnalyzer m_market;
@@ -81,6 +84,10 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
   {
+   //--- 0. Manage Open Positions (Profit Protection)
+   //--- FIX: Convert Pips to Points (Input 30 -> 300 Points)
+   g_Orders.ManagePositions(InpTrailStop * 10, InpBreakEvenTrigger * 10, InpBreakEvenLock * 10);
+
    //--- 1. Update Market Analysis
    if(!m_market.Analyze()) return;
 
@@ -133,50 +140,67 @@ void CheckForNewTrade()
    double dist_fast_pips = (close1 - tfM15.fastMA_1) / _Point;
    double body_size_pips = MathAbs(close1 - open1) / _Point;
 
+   //--- NEW: H1 Candle Momentum Filter
+   MqlRates h1Rates[];
+   ArraySetAsSeries(h1Rates, true);
+   if(CopyRates(_Symbol, PERIOD_H1, 1, 1, h1Rates) < 1) return;
+   
+   double h1Close = h1Rates[0].close;
+   double h1Open = h1Rates[0].open;
+   bool h1IsBullish = (h1Close > h1Open);
+   bool h1IsBearish = (h1Close < h1Open);
 
    //--- 4. Check for Trade Signals
    
-   //--- FIX: Volatility Filter (Skip Dead Markets)
-   if(tfH1.rawATR < 10 * _Point) return; // Min 10 pips volatility
+   //--- FIX: Volatility Filter (Must be > 10 pips)
+   if(tfH1.rawATR < 10 * _Point) return;
+   if(tfM15.trendStrength > 0 && tfM15.trendStrength < 20) return; // M15 ADX check if avail
 
    //--- FIX: Session Time Filter (08:00 - 18:00 Only)
    MqlDateTime dt;
    TimeCurrent(dt);
-   if(dt.hour < 8 || dt.hour >= 18) return; // Skip Asian Session & Late NY
+   if(dt.hour < 8 || dt.hour >= 18) return; 
 
-   if(tfH1.trend == TREND_UP)
+   //--- Common Confirmations
+   bool hasBullPattern = (tfM15.pattern == PATTERN_BULL_ENGULF || tfM15.pattern == PATTERN_HAMMER || tfM15.pattern == PATTERN_MORNING_STAR);
+   bool hasBearPattern = (tfM15.pattern == PATTERN_BEAR_ENGULF || tfM15.pattern == PATTERN_SHOOTING_STAR || tfM15.pattern == PATTERN_EVENING_STAR);
+
+   if(tfH1.trend == TREND_UP && h1IsBullish)  // H1 Candle Momentum Filter
      {
       bool isAligned = (tfM15.fastMA_1 > tfM15.slowMA_1);
       
-      //--- FIX: 2-Bar Crossover Confirmation
-      bool crossConfirmed = (tfM15.fastMA_1 > tfM15.slowMA_1) && (tfM15.fastMA_2 > tfM15.slowMA_2) && (tfM15.fastMA_3 < tfM15.slowMA_3);
+      //--- REFINED: Crossover Confirmation
+      bool crossConfirmed = (tfM15.fastMA_1 > tfM15.slowMA_1) && (tfM15.fastMA_2 < tfM15.slowMA_2); // Fresh cross
       
-      //--- FIX: Robust Pullback Validation
-      double pullbackDepth = (tfM15.fastMA_1 - low1) / _Point;
-      double candleRange = (high1 - low1);
-      bool validDepth = (pullbackDepth >= 5.0 && pullbackDepth <= 30.0);
-      bool priceAboveMA = (close1 > tfM15.fastMA_1 + (3 * _Point));
-      bool strongBullish = (candleRange > 0) ? (body_size_pips * _Point / candleRange) > 0.5 : false;
+      //--- REFINED: Pullback Logic
+      // Price must dip close to FastMA (Dynamic Support) but close above it
+      double maZone = 50 * _Point; // 5 pips tolerance
+      bool touchedZone = (low1 <= tfM15.fastMA_1 + maZone); 
+      bool rejectedZone = (close1 > tfM15.fastMA_1);
+      bool bullishCandle = (close1 > open1);
       
-      bool pullbackBuy = validDepth && priceAboveMA && strongBullish;
+      // Strict Pullback: Touched MA zone + Bullish Close + (Pattern Preferred)
+      bool pullbackBuy = isAligned && touchedZone && rejectedZone && bullishCandle;
       
       if(isAligned)
         {
-         if(crossConfirmed) PrintFormat(">>> DEBUG: M15 Buy Crossover Confirmed. Candle: %.1f pips", body_size_pips);
-         if(pullbackBuy) PrintFormat(">>> DEBUG: M15 Buy Pullback. Low touched %.5f. Dist: %.1f pips.", tfM15.fastMA_1, dist_fast_pips);
+         if(crossConfirmed) PrintFormat(">>> DEBUG: M15 Buy Crossover. Pattern: %s", EnumToString(tfM15.pattern));
+         if(pullbackBuy) PrintFormat(">>> DEBUG: M15 Buy Pullback. Low:%.5f MA:%.5f", low1, tfM15.fastMA_1);
         }
 
-      //--- ENTRY TRIGER: Only Confirmed Crossover or Pullback
-      if(isAligned && (crossConfirmed || pullbackBuy))
+      //--- ENTRY TRIGGER
+      // 1. Fresh Crossover with Bullish Pattern
+      // 2. Valid Pullback with Bullish Candle
+      if( (crossConfirmed && hasBullPattern) || pullbackBuy )
         {
-         string reason = crossConfirmed ? "Crossover" : "Pullback";
+         string reason = crossConfirmed ? "Crossover+Pattern" : "Pullback";
          Print(">>> SIGNAL: BUY DETECTED! Reason: " + reason);
          
-         //--- Step 1: Calculate Stop Loss and Take Profit (ATR Based)
+         //--- Step 1: Calculate Stop Loss and Take Profit
          double stopLoss = 0, takeProfit = 0;
          g_Risk.GetSmartSLTP(Symbol(), (int)TREND_UP, tfH1.rawATR, stopLoss, takeProfit);
          
-         //--- Step 2: Calculate SL Distance in Pips for Position Sizer
+         //--- Step 2: Calculate SL Distance
          double currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
          double slPips = MathAbs(currentPrice - stopLoss) / _Point;
          
@@ -196,39 +220,42 @@ void CheckForNewTrade()
            }
         }
      }
-   else if(tfH1.trend == TREND_DOWN)
+   else if(tfH1.trend == TREND_DOWN && h1IsBearish)  // H1 Candle Momentum Filter
      {
       bool isAligned = (tfM15.fastMA_1 < tfM15.slowMA_1);
       
-      //--- FIX: 2-Bar Crossover Confirmation (Sell)
-      bool crossConfirmed = (tfM15.fastMA_1 < tfM15.slowMA_1) && (tfM15.fastMA_2 < tfM15.slowMA_2) && (tfM15.fastMA_3 > tfM15.slowMA_3);
+      //--- REFINED: Crossover Confirmation
+      bool crossConfirmed = (tfM15.fastMA_1 < tfM15.slowMA_1) && (tfM15.fastMA_2 > tfM15.slowMA_2); // Fresh cross
       
-      //--- FIX: Robust Pullback Validation (Sell)
-      double pullbackDepth = (high1 - tfM15.fastMA_1) / _Point;
-      double candleRange = (high1 - low1);
-      bool validDepth = (pullbackDepth >= 5.0 && pullbackDepth <= 30.0);
-      bool priceBelowMA = (close1 < tfM15.fastMA_1 - (3 * _Point));
-      bool strongBearish = (candleRange > 0) ? (body_size_pips * _Point / candleRange) > 0.5 : false;
+      //--- REFINED: Pullback Logic
+      // Price must spike up to FastMA (Dynamic Resistance) but close below it
+      double maZone = 50 * _Point; // 5 pips tolerance
+      bool touchedZone = (high1 >= tfM15.fastMA_1 - maZone); 
+      bool rejectedZone = (close1 < tfM15.fastMA_1);
+      bool bearishCandle = (close1 < open1);
       
-      bool pullbackSell = validDepth && priceBelowMA && strongBearish;
+      // Strict Pullback: Touched MA zone + Bearish Close
+      bool pullbackSell = isAligned && touchedZone && rejectedZone && bearishCandle;
       
       if(isAligned)
         {
-         if(crossConfirmed) PrintFormat(">>> DEBUG: M15 Sell Crossover Confirmed. Candle: %.1f pips", body_size_pips);
-         if(pullbackSell) PrintFormat(">>> DEBUG: M15 Sell Pullback. High touched %.5f. Dist: %.1f pips.", tfM15.fastMA_1, dist_fast_pips);
+         if(crossConfirmed) PrintFormat(">>> DEBUG: M15 Sell Crossover. Pattern: %s", EnumToString(tfM15.pattern));
+         if(pullbackSell) PrintFormat(">>> DEBUG: M15 Sell Pullback. High:%.5f MA:%.5f", high1, tfM15.fastMA_1);
         }
 
-      //--- ENTRY TRIGER: Only Confirmed Crossover or Pullback
-      if(isAligned && (crossConfirmed || pullbackSell))
+      //--- ENTRY TRIGGER
+      // 1. Fresh Crossover with Bearish Pattern
+      // 2. Valid Pullback with Bearish Candle
+      if( (crossConfirmed && hasBearPattern) || pullbackSell )
         {
-         string reason = crossConfirmed ? "Crossover" : "Pullback";
+         string reason = crossConfirmed ? "Crossover+Pattern" : "Pullback";
          Print(">>> SIGNAL: SELL DETECTED! Reason: " + reason);
          
          //--- Step 1: Calculate Stop Loss and Take Profit
          double stopLoss = 0, takeProfit = 0;
          g_Risk.GetSmartSLTP(Symbol(), (int)TREND_DOWN, tfH1.rawATR, stopLoss, takeProfit);
          
-         //--- Step 2: Calculate SL Distance in Pips
+         //--- Step 2: Calculate SL Distance
          double currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
          double slPips = MathAbs(currentPrice - stopLoss) / _Point;
 
