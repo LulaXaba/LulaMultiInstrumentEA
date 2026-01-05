@@ -176,14 +176,19 @@ bool C_DataCollector::Initialize(string dataPath, int maxFileSizeMB, int flushIn
    Print("   Flush Interval: ", m_flushIntervalMinutes, " minutes");
    
    // Create data directory if it doesn't exist
-   if(!FolderCreate(m_dataPath, FILE_COMMON))
+   // Note: Directory will be created in MQL5/Files/
+   if(!FolderCreate(m_dataPath, 0))
    {
       int error = GetLastError();
       // Error 5006 means folder already exists, which is fine
-      if(error != 5006)
+      if(error != 5006 && error != 0)
       {
-         Print("Warning: Could not create directory (error ", error, "), may already exist");
+         Print("Warning: Could not create directory (error ", error, ")");
       }
+   }
+   else
+   {
+      Print("Created directory: MQL5/Files/", m_dataPath);
    }
    
    // Open or create CSV file
@@ -219,6 +224,9 @@ bool C_DataCollector::OpenOrCreateFile()
    // Generate file path for current month
    m_currentFilePath = GenerateFilePath(TimeCurrent());
    
+   Print("Attempting to open file: ", m_currentFilePath);
+   Print("Full path will be: MQL5/Files/", m_currentFilePath);
+   
    // Check if file exists
    bool fileExists = false;
    int testHandle = FileOpen(m_currentFilePath, FILE_READ|FILE_CSV|FILE_ANSI);
@@ -226,15 +234,21 @@ bool C_DataCollector::OpenOrCreateFile()
    {
       fileExists = true;
       FileClose(testHandle);
+      Print("File exists, will append to it");
+   }
+   else
+   {
+      Print("File does not exist, will create new file");
    }
    
-   // Open file in append mode
+   // Open file in read/write mode
    m_fileHandle = FileOpen(m_currentFilePath, FILE_WRITE|FILE_READ|FILE_CSV|FILE_ANSI);
    
    if(m_fileHandle == INVALID_HANDLE)
    {
       Print("ERROR: Failed to open file: ", m_currentFilePath);
       Print("   Error code: ", GetLastError());
+      Print("   Full path should be: MQL5/Files/", m_currentFilePath);
       return false;
    }
    
@@ -247,13 +261,13 @@ bool C_DataCollector::OpenOrCreateFile()
          CloseFile();
          return false;
       }
-      Print("Created new data file: ", m_currentFilePath);
+      Print("Created new data file with header: ", m_currentFilePath);
    }
    else
    {
       // Move to end of file for appending
       FileSeek(m_fileHandle, 0, SEEK_END);
-      Print("Opened existing data file: ", m_currentFilePath);
+      Print("Opened existing data file for appending: ", m_currentFilePath);
    }
    
    return true;
