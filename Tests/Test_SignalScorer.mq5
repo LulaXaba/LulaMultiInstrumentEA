@@ -1,7 +1,7 @@
 //+------------------------------------------------------------------+
 //|                                          Test_SignalScorer.mq5   |
-//|                   LulaMultiInstrumentEA - Signal Scorer Tests   |
-//|                                   Phase 0: ML-Lite Foundation   |
+//|                    LulaMultiInstrumentEA - Signal Scorer Tests   |
+//|                                    Phase 0: ML-Lite Foundation   |
 //+------------------------------------------------------------------+
 #property copyright "LulaXaba"
 #property link      "https://github.com/LulaXaba/LulaMultiInstrumentEA"
