@@ -9,6 +9,7 @@
 #property strict
 
 #include "../Core/ML/C_SignalScorer.mqh"
+#include "../Core/ML/IndicatorHelpers_MQL5.mqh"
 
 // Global test variables
 C_SignalScorer g_scorer;
