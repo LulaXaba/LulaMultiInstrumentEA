@@ -509,7 +509,7 @@ double C_SignalScorer::ScoreTrendStrength(string symbol, ENUM_TIMEFRAMES tf)
    // Use ADX (Average Directional Index) to measure trend strength
    // ADX > 25 = Strong trend, ADX < 20 = Weak/ranging
    
-   double adx = GetADX(1, $2, $3, $4);
+   double adx = GetADX(symbol, tf, 14, 1);
    
    // Normalize ADX to 0.0-1.0 score
    // 0-20: weak (0.0-0.2)
@@ -725,7 +725,7 @@ double C_SignalScorer::ScoreRSIConfirmation(string symbol, ENUM_TIMEFRAMES tf, i
    // RSI confirmation: not overbought for buys, not oversold for sells
    // Also check for divergence (advanced)
    
-   double rsi = GetRSI(1, $2, $3, 1, $4);
+   double rsi = GetRSI(symbol, tf, 14, 1, 1);
    bool signal_bullish = (direction == OP_BUY);
    
    if(signal_bullish)
@@ -861,12 +861,12 @@ double C_SignalScorer::ScoreVolatility(string symbol, ENUM_TIMEFRAMES tf)
    // ATR-based volatility appropriateness
    // Ideal: moderate volatility (not too low = ranging, not too high = unpredictable)
    
-   double atr_current = GetATR(1, $2, $3, $4);
+   double atr_current = GetATR(symbol, tf, 14, 1);
    double atr_avg = 0;
    
    // Calculate average ATR over 50 periods
    for(int i = 1; i <= 50; i++)
-      atr_avg += iATR(symbol, tf, 14, i);
+      atr_avg += GetATR(symbol, tf, 14, i);
    atr_avg /= 50.0;
    
    if(atr_avg == 0) return 0.5;
@@ -957,7 +957,7 @@ double C_SignalScorer::ScoreMarketRegime(string symbol, ENUM_TIMEFRAMES tf)
    // Detect market regime: trending vs ranging
    // Use ADX and Bollinger Band width
    
-   double adx = GetADX(1, $2, $3, $4);
+   double adx = GetADX(symbol, tf, 14, 1);
    
    // Calculate Bollinger Band width
    double bb_upper = GetBands(symbol, tf, 20, 2, 0, 1, 1, 1);
@@ -1033,7 +1033,7 @@ double C_SignalScorer::ScoreSLPlacement(string symbol, ENUM_TIMEFRAMES tf, doubl
    if(sl == 0) return 0.5;
    
    double currentPrice = SymbolInfoDouble(symbol, SYMBOL_BID);
-   double atr = GetATR(1, $2, $3, $4);
+   double atr = GetATR(symbol, tf, 14, 1);
    double sl_distance = MathAbs(currentPrice - sl);
    
    // Find recent swing point
@@ -1081,7 +1081,7 @@ double C_SignalScorer::ScoreTPPlacement(string symbol, ENUM_TIMEFRAMES tf, doubl
    if(tp == 0) return 0.5;
    
    double currentPrice = SymbolInfoDouble(symbol, SYMBOL_BID);
-   double atr = GetATR(1, $2, $3, $4);
+   double atr = GetATR(symbol, tf, 14, 1);
    double tp_distance = MathAbs(tp - currentPrice);
    
    // Find key level (swing high/low)
@@ -1168,7 +1168,7 @@ double C_SignalScorer::ScoreKeyLevelDistance(string symbol, ENUM_TIMEFRAMES tf)
    double distance_to_00 = MathAbs(currentPrice - nearest_00);
    double nearest_distance = MathMin(distance_to_50, distance_to_00);
    
-   double atr = GetATR(1, $2, $3, $4);
+   double atr = GetATR(symbol, tf, 14, 1);
    if(atr == 0) return 0.5;
    
    double distance_atr_ratio = nearest_distance / atr;
@@ -1197,7 +1197,7 @@ double C_SignalScorer::ScoreSimilarSetups(string symbol, ENUM_TIMEFRAMES tf, int
    // - Success rate of similar price action patterns
    
    // Placeholder: use trend strength as proxy
-   double adx = GetADX(1, $2, $3, $4);
+   double adx = GetADX(symbol, tf, 14, 1);
    
    if(adx > 30)
       return 0.7; // Strong trends tend to continue
@@ -1260,8 +1260,8 @@ double C_SignalScorer::ScorePatternFrequency(string symbol, ENUM_TIMEFRAMES tf)
    // TODO: In Week 2, track actual pattern occurrences
    // For now: estimate based on volatility and trend strength
    
-   double adx = GetADX(1, $2, $3, $4);
-   double rsi = GetRSI(1, $2, $3, 1, $4);
+   double adx = GetADX(symbol, tf, 14, 1);
+   double rsi = GetRSI(symbol, tf, 14, 1, 1);
    
    // Ideal patterns: clear trend (ADX > 25), RSI not extreme
    bool is_trending = adx > 25;
