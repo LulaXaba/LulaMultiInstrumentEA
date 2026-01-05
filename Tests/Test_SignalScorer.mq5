@@ -246,7 +246,7 @@ void Test_WithStopLossTakeProfit()
    int direction = OP_BUY;
    
    double currentPrice = SymbolInfoDouble(symbol, SYMBOL_BID);
-   double atr = iATR(symbol, tf, 14, 1);
+   double atr = GetATR(symbol, tf, 14, 1);
    
    // Set SL 1.5x ATR below, TP 3x ATR above (2:1 R:R)
    double sl = currentPrice - (atr * 1.5);
