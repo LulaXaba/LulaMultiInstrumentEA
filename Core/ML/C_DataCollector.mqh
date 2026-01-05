@@ -227,9 +227,9 @@ bool C_DataCollector::OpenOrCreateFile()
    Print("Attempting to open file: ", m_currentFilePath);
    Print("Full path will be: MQL5/Files/", m_currentFilePath);
    
-   // Check if file exists
+   // Check if file exists by trying to open it for reading
    bool fileExists = false;
-   int testHandle = FileOpen(m_currentFilePath, FILE_READ|FILE_CSV|FILE_ANSI);
+   int testHandle = FileOpen(m_currentFilePath, FILE_READ|FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_ANSI);
    if(testHandle != INVALID_HANDLE)
    {
       fileExists = true;
@@ -241,15 +241,36 @@ bool C_DataCollector::OpenOrCreateFile()
       Print("File does not exist, will create new file");
    }
    
-   // Open file in read/write mode
-   m_fileHandle = FileOpen(m_currentFilePath, FILE_WRITE|FILE_READ|FILE_CSV|FILE_ANSI);
+   // Open file with shared access (allow other EAs to read/write)
+   int flags = FILE_WRITE|FILE_READ|FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_ANSI;
+   m_fileHandle = FileOpen(m_currentFilePath, flags);
    
    if(m_fileHandle == INVALID_HANDLE)
    {
+      int error = GetLastError();
       Print("ERROR: Failed to open file: ", m_currentFilePath);
-      Print("   Error code: ", GetLastError());
+      Print("   Error code: ", error);
       Print("   Full path should be: MQL5/Files/", m_currentFilePath);
-      return false;
+      
+      // Try alternative: create with FILE_WRITE only first
+      if(!fileExists)
+      {
+         Print("Attempting alternative: FILE_WRITE only...");
+         m_fileHandle = FileOpen(m_currentFilePath, FILE_WRITE|FILE_ANSI);
+         if(m_fileHandle != INVALID_HANDLE)
+         {
+            Print("Success with FILE_WRITE only");
+         }
+         else
+         {
+            Print("Alternative also failed, error: ", GetLastError());
+            return false;
+         }
+      }
+      else
+      {
+         return false;
+      }
    }
    
    // If new file, write header
