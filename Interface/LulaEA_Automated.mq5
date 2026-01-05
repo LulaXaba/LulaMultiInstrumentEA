@@ -16,6 +16,9 @@
 #include "..\Execution\C_RiskManager.mqh"
 #include "..\Execution\C_OrderManager.mqh"
 #include "..\Execution\C_PositionSizer.mqh"
+// ML Components
+#include "..\Core\ML\C_DataCollector.mqh"
+#include "..\Core\ML\C_SignalScorer.mqh"
 
 //--- Inputs
 input double InpRiskPercent = 3.0;  // Aggressive Growth Mode
@@ -25,6 +28,11 @@ input int    InpSlow_Length = 26;
 input int    InpTrailStop = 50;           // Trailing Stop (pips) [SWING MODE]
 input int    InpBreakEvenTrigger = 25;    // Break Even Trigger (pips)
 input int    InpBreakEvenLock = 10;       // Break Even Lock (pips)
+//--- ML Data Collection
+input bool   InpMLDataCollection = true;  // Enable ML Data Collection
+input string InpMLDataPath = "ML_Data";    // ML Data Directory
+input int    InpMLMaxFileSize = 50;        // Max CSV File Size (MB)
+input int    InpMLFlushInterval = 60;      // Data Flush Interval (minutes)
 
 //--- Global Objects
 C_MarketAnalyzer m_market;
@@ -33,6 +41,9 @@ C_OrderManager   g_Orders;
 C_PositionSizer  m_positionSizer;
 C_InstrumentConfig g_Config;
 CPositionInfo    g_Position;
+// ML Components
+C_DataCollector  g_DataCollector;
+C_SignalScorer   g_SignalScorer;
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
@@ -68,6 +79,29 @@ int OnInit()
      }
    
    Print(">>> LulaEA Initialized. Indicators ready.");
+   
+   //--- Initialize ML Components (if enabled)
+   if(InpMLDataCollection)
+     {
+      // Initialize Signal Scorer
+      if(!g_SignalScorer.Initialize())
+        {
+         Print("Warning: Signal Scorer initialization failed - ML disabled");
+        }
+      else
+        {
+         // Initialize Data Collector
+         if(!g_DataCollector.Initialize(InpMLDataPath, InpMLMaxFileSize, InpMLFlushInterval))
+           {
+            Print("Warning: Data Collector initialization failed - ML disabled");
+           }
+         else
+           {
+            Print("✅ ML Data Collection enabled");
+           }
+        }
+     }
+   
    return(INIT_SUCCEEDED);
   }
 
@@ -76,6 +110,12 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
   {
+   //--- Shutdown ML Components
+   if(InpMLDataCollection)
+     {
+      g_DataCollector.Shutdown();
+     }
+   
    Print("LulaEA Automated Deinitialized.");
   }
 
@@ -90,6 +130,12 @@ void OnTick()
 
    //--- 1. Update Market Analysis
    if(!m_market.Analyze()) return;
+
+   //--- 1.5. Periodic ML Data Flush
+   if(InpMLDataCollection)
+     {
+      g_DataCollector.PeriodicFlush();
+     }
 
    //--- 2. Check for New Trade
    CheckForNewTrade();
@@ -207,6 +253,14 @@ void CheckForNewTrade()
          //--- Step 3: Calculate Lot Size
          double lotSize = m_positionSizer.CalculateLotSize(InpRiskPercent, slPips);
          
+         //--- ML: Score and Log Signal
+         if(InpMLDataCollection)
+           {
+            SignalScore score = g_SignalScorer.EvaluateSignal(_Symbol, PERIOD_M15, OP_BUY, stopLoss, takeProfit);
+            PrintFormat("ML: BUY Score=%.4f, Recommendation=%s", score.score, EnumToString(score.recommendation));
+            string tradeId = g_DataCollector.LogSignal(score, _Symbol, PERIOD_M15, OP_BUY, currentPrice, stopLoss, takeProfit);
+           }
+         
          PrintFormat(">>> EXECUTION: Placing BUY. Lot=%.2f, SL=%.5f, TP=%.5f", lotSize, stopLoss, takeProfit);
          
          if(lotSize > 0)
@@ -261,6 +315,14 @@ void CheckForNewTrade()
 
          //--- Step 3: Calculate Lot Size
          double lotSize = m_positionSizer.CalculateLotSize(InpRiskPercent, slPips);
+
+         //--- ML: Score and Log Signal
+         if(InpMLDataCollection)
+           {
+            SignalScore score = g_SignalScorer.EvaluateSignal(_Symbol, PERIOD_M15, OP_SELL, stopLoss, takeProfit);
+            PrintFormat("ML: SELL Score=%.4f, Recommendation=%s", score.score, EnumToString(score.recommendation));
+            string tradeId = g_DataCollector.LogSignal(score, _Symbol, PERIOD_M15, OP_SELL, currentPrice, stopLoss, takeProfit);
+           }
 
          PrintFormat(">>> EXECUTION: Placing SELL. Lot=%.2f, SL=%.5f, TP=%.5f", lotSize, stopLoss, takeProfit);
          
