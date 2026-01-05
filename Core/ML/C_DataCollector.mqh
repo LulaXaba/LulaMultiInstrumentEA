@@ -175,6 +175,17 @@ bool C_DataCollector::Initialize(string dataPath, int maxFileSizeMB, int flushIn
    Print("   Max File Size: ", m_maxFileSizeMB, " MB");
    Print("   Flush Interval: ", m_flushIntervalMinutes, " minutes");
    
+   // Create data directory if it doesn't exist
+   if(!FolderCreate(m_dataPath, FILE_COMMON))
+   {
+      int error = GetLastError();
+      // Error 5006 means folder already exists, which is fine
+      if(error != 5006)
+      {
+         Print("Warning: Could not create directory (error ", error, "), may already exist");
+      }
+   }
+   
    // Open or create CSV file
    if(!OpenOrCreateFile())
    {
