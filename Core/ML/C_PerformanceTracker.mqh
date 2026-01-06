@@ -91,8 +91,7 @@ private:
    double m_mediumScoreThreshold;
    
    // Helper methods
-   TierMetrics* GetTierByScore(double score);
-   void CalculateDerivedMetrics(TierMetrics *tier);
+   void CalculateDerivedMetrics(TierMetrics &tier);
    void UpdateDrawdown(double currentEquity);
    void UpdateEquityCurve(double equity);
    double CalculateSharpe();
@@ -206,24 +205,18 @@ void C_PerformanceTracker::Shutdown()
 }
 
 //+------------------------------------------------------------------+
-//| Get tier by score                                                |
-//+------------------------------------------------------------------+
-TierMetrics* C_PerformanceTracker::GetTierByScore(double score)
-{
-   if(score >= m_highScoreThreshold)
-      return &m_highTier;
-   else if(score >= m_mediumScoreThreshold)
-      return &m_mediumTier;
-   else
-      return &m_lowTier;
-}
-
-//+------------------------------------------------------------------+
 //| Record signal generation                                         |
 //+------------------------------------------------------------------+
 void C_PerformanceTracker::RecordSignal(double score, bool wasTaken)
 {
-   TierMetrics *tier = GetTierByScore(score);
+   // Determine which tier based on score
+   TierMetrics *tier = NULL;
+   if(score >= m_highScoreThreshold)
+      tier = &m_highTier;
+   else if(score >= m_mediumScoreThreshold)
+      tier = &m_mediumTier;
+   else
+      tier = &m_lowTier;
    
    tier.signalsGenerated++;
    m_overall.signalsGenerated++;
@@ -240,8 +233,8 @@ void C_PerformanceTracker::RecordSignal(double score, bool wasTaken)
    }
    
    // Recalculate derived metrics
-   CalculateDerivedMetrics(tier);
-   CalculateDerivedMetrics(&m_overall);
+   CalculateDerivedMetrics(*tier);
+   CalculateDerivedMetrics(m_overall);
 }
 
 //+------------------------------------------------------------------+
@@ -249,7 +242,14 @@ void C_PerformanceTracker::RecordSignal(double score, bool wasTaken)
 //+------------------------------------------------------------------+
 void C_PerformanceTracker::RecordOutcome(double score, bool isWin, double profitPips)
 {
-   TierMetrics *tier = GetTierByScore(score);
+   // Determine which tier based on score
+   TierMetrics *tier = NULL;
+   if(score >= m_highScoreThreshold)
+      tier = &m_highTier;
+   else if(score >= m_mediumScoreThreshold)
+      tier = &m_mediumTier;
+   else
+      tier = &m_lowTier;
    
    // Update win/loss counts
    if(isWin)
@@ -289,14 +289,14 @@ void C_PerformanceTracker::RecordOutcome(double score, bool isWin, double profit
    UpdateEquityCurve(m_overall.totalProfit - m_overall.totalLoss);
    
    // Recalculate derived metrics
-   CalculateDerivedMetrics(tier);
-   CalculateDerivedMetrics(&m_overall);
+   CalculateDerivedMetrics(*tier);
+   CalculateDerivedMetrics(m_overall);
 }
 
 //+------------------------------------------------------------------+
 //| Calculate derived metrics                                        |
 //+------------------------------------------------------------------+
-void C_PerformanceTracker::CalculateDerivedMetrics(TierMetrics *tier)
+void C_PerformanceTracker::CalculateDerivedMetrics(TierMetrics &tier)
 {
    int totalTrades = tier.wins + tier.losses;
    
