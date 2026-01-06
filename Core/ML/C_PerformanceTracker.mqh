@@ -209,31 +209,41 @@ void C_PerformanceTracker::Shutdown()
 //+------------------------------------------------------------------+
 void C_PerformanceTracker::RecordSignal(double score, bool wasTaken)
 {
-   // Determine which tier based on score
-   TierMetrics *tier = NULL;
+   // Update appropriate tier based on score
    if(score >= m_highScoreThreshold)
-      tier = &m_highTier;
+   {
+      m_highTier.signalsGenerated++;
+      if(wasTaken)
+         m_highTier.signalsTaken++;
+      else
+         m_highTier.signalsSkipped++;
+      CalculateDerivedMetrics(m_highTier);
+   }
    else if(score >= m_mediumScoreThreshold)
-      tier = &m_mediumTier;
+   {
+      m_mediumTier.signalsGenerated++;
+      if(wasTaken)
+         m_mediumTier.signalsTaken++;
+      else
+         m_mediumTier.signalsSkipped++;
+      CalculateDerivedMetrics(m_mediumTier);
+   }
    else
-      tier = &m_lowTier;
+   {
+      m_lowTier.signalsGenerated++;
+      if(wasTaken)
+         m_lowTier.signalsTaken++;
+      else
+         m_lowTier.signalsSkipped++;
+      CalculateDerivedMetrics(m_lowTier);
+   }
    
-   tier.signalsGenerated++;
+   // Update overall
    m_overall.signalsGenerated++;
-   
    if(wasTaken)
-   {
-      tier.signalsTaken++;
       m_overall.signalsTaken++;
-   }
    else
-   {
-      tier.signalsSkipped++;
       m_overall.signalsSkipped++;
-   }
-   
-   // Recalculate derived metrics
-   CalculateDerivedMetrics(*tier);
    CalculateDerivedMetrics(m_overall);
 }
 
@@ -242,54 +252,96 @@ void C_PerformanceTracker::RecordSignal(double score, bool wasTaken)
 //+------------------------------------------------------------------+
 void C_PerformanceTracker::RecordOutcome(double score, bool isWin, double profitPips)
 {
-   // Determine which tier based on score
-   TierMetrics *tier = NULL;
+   // Update appropriate tier based on score
    if(score >= m_highScoreThreshold)
-      tier = &m_highTier;
+   {
+      if(isWin)
+      {
+         m_highTier.wins++;
+         m_highTier.totalProfit += profitPips;
+         if(profitPips > m_highTier.largestWin)
+            m_highTier.largestWin = profitPips;
+      }
+      else if(profitPips < -0.1)
+      {
+         m_highTier.losses++;
+         double lossAmount = MathAbs(profitPips);
+         m_highTier.totalLoss += lossAmount;
+         if(lossAmount > m_highTier.largestLoss)
+            m_highTier.largestLoss = lossAmount;
+      }
+      else
+         m_highTier.breakevens++;
+      
+      CalculateDerivedMetrics(m_highTier);
+   }
    else if(score >= m_mediumScoreThreshold)
-      tier = &m_mediumTier;
+   {
+      if(isWin)
+      {
+         m_mediumTier.wins++;
+         m_mediumTier.totalProfit += profitPips;
+         if(profitPips > m_mediumTier.largestWin)
+            m_mediumTier.largestWin = profitPips;
+      }
+      else if(profitPips < -0.1)
+      {
+         m_mediumTier.losses++;
+         double lossAmount = MathAbs(profitPips);
+         m_mediumTier.totalLoss += lossAmount;
+         if(lossAmount > m_mediumTier.largestLoss)
+            m_mediumTier.largestLoss = lossAmount;
+      }
+      else
+         m_mediumTier.breakevens++;
+      
+      CalculateDerivedMetrics(m_mediumTier);
+   }
    else
-      tier = &m_lowTier;
+   {
+      if(isWin)
+      {
+         m_lowTier.wins++;
+         m_lowTier.totalProfit += profitPips;
+         if(profitPips > m_lowTier.largestWin)
+            m_lowTier.largestWin = profitPips;
+      }
+      else if(profitPips < -0.1)
+      {
+         m_lowTier.losses++;
+         double lossAmount = MathAbs(profitPips);
+         m_lowTier.totalLoss += lossAmount;
+         if(lossAmount > m_lowTier.largestLoss)
+            m_lowTier.largestLoss = lossAmount;
+      }
+      else
+         m_lowTier.breakevens++;
+      
+      CalculateDerivedMetrics(m_lowTier);
+   }
    
-   // Update win/loss counts
+   // Update overall
    if(isWin)
    {
-      tier.wins++;
       m_overall.wins++;
-      
-      tier.totalProfit += profitPips;
       m_overall.totalProfit += profitPips;
-      
-      if(profitPips > tier.largestWin)
-         tier.largestWin = profitPips;
       if(profitPips > m_overall.largestWin)
          m_overall.largestWin = profitPips;
    }
-   else if(profitPips < -0.1) // Loss
+   else if(profitPips < -0.1)
    {
-      tier.losses++;
       m_overall.losses++;
-      
       double lossAmount = MathAbs(profitPips);
-      tier.totalLoss += lossAmount;
       m_overall.totalLoss += lossAmount;
-      
-      if(lossAmount > tier.largestLoss)
-         tier.largestLoss = lossAmount;
       if(lossAmount > m_overall.largestLoss)
          m_overall.largestLoss = lossAmount;
    }
-   else // Breakeven
-   {
-      tier.breakevens++;
+   else
       m_overall.breakevens++;
-   }
    
    // Update equity curve
    UpdateEquityCurve(m_overall.totalProfit - m_overall.totalLoss);
    
-   // Recalculate derived metrics
-   CalculateDerivedMetrics(*tier);
    CalculateDerivedMetrics(m_overall);
 }
 
