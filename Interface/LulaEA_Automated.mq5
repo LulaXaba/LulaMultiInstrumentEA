@@ -19,6 +19,7 @@
 // ML Components
 #include "..\Core\ML\C_DataCollector.mqh"
 #include "..\Core\ML\C_SignalScorer.mqh"
+#include "..\Core\ML\C_PerformanceTracker.mqh"
 
 //--- Inputs
 input double InpRiskPercent = 3.0;  // Aggressive Growth Mode
@@ -33,6 +34,12 @@ input bool   InpMLDataCollection = true;  // Enable ML Data Collection
 input string InpMLDataPath = "ML_Data";    // ML Data Directory
 input int    InpMLMaxFileSize = 50;        // Max CSV File Size (MB)
 input int    InpMLFlushInterval = 60;      // Data Flush Interval (minutes)
+//--- ML-Lite Filtering
+input bool   InpMLLiteEnabled = false;     // Enable ML-Lite Filtering
+input double InpMLScoreThreshold = 0.60;   // Min Score to Take Trade (0.0-1.0)
+input bool   InpMLRiskScaling = false;     // Scale Risk by Score
+input double InpMLHighScoreMultiplier = 1.5;  // Risk Mult for Score >= 0.80
+input double InpMLMediumScoreMultiplier = 1.2;// Risk Mult for Score >= 0.65
 
 //--- Global Objects
 C_MarketAnalyzer m_market;
@@ -44,6 +51,7 @@ CPositionInfo    g_Position;
 // ML Components
 C_DataCollector  g_DataCollector;
 C_SignalScorer   g_SignalScorer;
+C_PerformanceTracker g_PerformanceTracker;
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
@@ -100,6 +108,19 @@ int OnInit()
             Print("✅ ML Data Collection enabled");
            }
         }
+      
+      // Initialize Performance Tracker if ML-Lite enabled
+      if(InpMLLiteEnabled)
+        {
+         if(!g_PerformanceTracker.Initialize())
+           {
+            Print("Warning: Performance Tracker initialization failed - ML-Lite disabled");
+           }
+         else
+           {
+            Print("✅ ML-Lite Filtering enabled (Threshold: ", InpMLScoreThreshold, ")");
+           }
+        }
      }
    
    return(INIT_SUCCEEDED);
@@ -114,6 +135,14 @@ void OnDeinit(const int reason)
    if(InpMLDataCollection)
      {
       g_DataCollector.Shutdown();
+     }
+   
+   if(InpMLLiteEnabled)
+     {
+      // Print final dashboard
+      Print("\n=== FINAL PERFORMANCE SUMMARY ===");
+      g_PerformanceTracker.PrintDashboard(30); // 30-day summary
+      g_PerformanceTracker.Shutdown();
      }
    
    Print("LulaEA Automated Deinitialized.");
@@ -135,6 +164,15 @@ void OnTick()
    if(InpMLDataCollection)
      {
       g_DataCollector.PeriodicFlush();
+     }
+   
+   //--- 1.6. Periodic Dashboard (every 6 hours)
+   static datetime lastDashboard = 0;
+   if(InpMLLiteEnabled && (TimeCurrent() - lastDashboard) >= 21600)
+     {
+      Print("\n=== 6-HOUR PERFORMANCE UPDATE ===");
+      g_PerformanceTracker.PrintDashboard(7);
+      lastDashboard = TimeCurrent();
      }
 
    //--- 2. Check for New Trade
@@ -254,11 +292,47 @@ void CheckForNewTrade()
          double lotSize = m_positionSizer.CalculateLotSize(InpRiskPercent, slPips);
          
          //--- ML: Score and Log Signal
-         if(InpMLDataCollection)
+         string tradeId = "";
+         SignalScore score;
+         
+         if(InpMLDataCollection || InpMLLiteEnabled)
            {
-            SignalScore score = g_SignalScorer.EvaluateSignal(_Symbol, PERIOD_M15, OP_BUY, stopLoss, takeProfit);
+            score = g_SignalScorer.EvaluateSignal(_Symbol, PERIOD_M15, OP_BUY, stopLoss, takeProfit);
             PrintFormat("ML: BUY Score=%.4f, Recommendation=%s", score.score, EnumToString(score.recommendation));
-            string tradeId = g_DataCollector.LogSignal(score, _Symbol, PERIOD_M15, OP_BUY, currentPrice, stopLoss, takeProfit);
+            
+            // Record signal generation
+            if(InpMLLiteEnabled)
+              g_PerformanceTracker.RecordSignal(score.score, false); // Will update to true if taken
+            
+            // Log to CSV
+            if(InpMLDataCollection)
+              tradeId = g_DataCollector.LogSignal(score, _Symbol, PERIOD_M15, OP_BUY, currentPrice, stopLoss, takeProfit);
+            
+            // ML-Lite Filtering
+            if(InpMLLiteEnabled && score.score < InpMLScoreThreshold)
+              {
+               PrintFormat(">>> SIGNAL FILTERED: Score %.4f < Threshold %.2f", score.score, InpMLScoreThreshold);
+               return; // Skip this trade
+              }
+            
+            // Risk Scaling
+            if(InpMLLiteEnabled && InpMLRiskScaling)
+              {
+               if(score.score >= 0.80)
+                 {
+                  lotSize *= InpMLHighScoreMultiplier;
+                  PrintFormat("   Risk scaled UP by %.1fx (High score)", InpMLHighScoreMultiplier);
+                 }
+               else if(score.score >= 0.65)
+                 {
+                  lotSize *= InpMLMediumScoreMultiplier;
+                  PrintFormat("   Risk scaled UP by %.1fx (Medium score)", InpMLMediumScoreMultiplier);
+                 }
+              }
+            
+            // Update: Signal will be taken
+            if(InpMLLiteEnabled)
+              g_PerformanceTracker.RecordSignal(score.score, true);
            }
          
          PrintFormat(">>> EXECUTION: Placing BUY. Lot=%.2f, SL=%.5f, TP=%.5f", lotSize, stopLoss, takeProfit);
@@ -317,11 +391,47 @@ void CheckForNewTrade()
          double lotSize = m_positionSizer.CalculateLotSize(InpRiskPercent, slPips);
 
          //--- ML: Score and Log Signal
-         if(InpMLDataCollection)
+         string tradeId = "";
+         SignalScore score;
+         
+         if(InpMLDataCollection || InpMLLiteEnabled)
            {
-            SignalScore score = g_SignalScorer.EvaluateSignal(_Symbol, PERIOD_M15, OP_SELL, stopLoss, takeProfit);
+            score = g_SignalScorer.EvaluateSignal(_Symbol, PERIOD_M15, OP_SELL, stopLoss, takeProfit);
             PrintFormat("ML: SELL Score=%.4f, Recommendation=%s", score.score, EnumToString(score.recommendation));
-            string tradeId = g_DataCollector.LogSignal(score, _Symbol, PERIOD_M15, OP_SELL, currentPrice, stopLoss, takeProfit);
+            
+            // Record signal generation
+            if(InpMLLiteEnabled)
+              g_PerformanceTracker.RecordSignal(score.score, false);
+            
+            // Log to CSV
+            if(InpMLDataCollection)
+              tradeId = g_DataCollector.LogSignal(score, _Symbol, PERIOD_M15, OP_SELL, currentPrice, stopLoss, takeProfit);
+            
+            // ML-Lite Filtering
+            if(InpMLLiteEnabled && score.score < InpMLScoreThreshold)
+              {
+               PrintFormat(">>> SIGNAL FILTERED: Score %.4f < Threshold %.2f", score.score, InpMLScoreThreshold);
+               return;
+              }
+            
+            // Risk Scaling
+            if(InpMLLiteEnabled && InpMLRiskScaling)
+              {
+               if(score.score >= 0.80)
+                 {
+                  lotSize *= InpMLHighScoreMultiplier;
+                  PrintFormat("   Risk scaled UP by %.1fx (High score)", InpMLHighScoreMultiplier);
+                 }
+               else if(score.score >= 0.65)
+                 {
+                  lotSize *= InpMLMediumScoreMultiplier;
+                  PrintFormat("   Risk scaled UP by %.1fx (Medium score)", InpMLMediumScoreMultiplier);
+                 }
+              }
+            
+            // Update: Signal will be taken
+            if(InpMLLiteEnabled)
+              g_PerformanceTracker.RecordSignal(score.score, true);
            }
 
          PrintFormat(">>> EXECUTION: Placing SELL. Lot=%.2f, SL=%.5f, TP=%.5f", lotSize, stopLoss, takeProfit);
