@@ -3,6 +3,30 @@
 //|                   LulaMultiInstrumentEA - Performance Tracking   |
 //|                                   Phase 0: ML-Lite Foundation   |
 //+------------------------------------------------------------------+
+//| Description:                                                     |
+//|   Performance analytics engine for ML-Lite signal filtering.    |
+//|   Tracks win rate, profit factor, and expectancy by score tier  |
+//|   (High: 0.7+, Medium: 0.5-0.7, Low: <0.5).                     |
+//|                                                                  |
+//| Key Features:                                                    |
+//|   - Real-time metrics calculation by score tier                 |
+//|   - Win rate and profit factor tracking                         |
+//|   - Drawdown monitoring (current & max)                         |
+//|   - Sharpe ratio calculation                                    |
+//|   - Calibration checking (do high scores win more?)             |
+//|   - Dashboard generation every 6 hours                          |
+//|                                                                  |
+//| Usage:                                                           |
+//|   C_PerformanceTracker tracker;                                 |
+//|   tracker.Initialize("ML_Data", 0.70, 0.50);                    |
+//|   tracker.RecordSignal(score, wasTaken);                        |
+//|   tracker.RecordOutcome(score, isWin, profitPips);              |
+//|   string dashboard = tracker.GenerateDashboard(7);              |
+//|                                                                  |
+//| Dependencies: None (standalone)                                 |
+//| Thread-Safe: Yes (no external state)                            |
+//| Memory Usage: ~2 KB per instance                                |
+//+------------------------------------------------------------------+
 #property copyright "LulaXaba"
 #property link      "https://github.com/LulaXaba/LulaMultiInstrumentEA"
 #property version   "1.00"
