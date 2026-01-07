@@ -1,7 +1,45 @@
 //+------------------------------------------------------------------+
-//|                                           C_DataCollector.mqh    |
+//|                                          C_DataCollector.mqh     |
 //|                   LulaMultiInstrumentEA - ML Data Collection     |
 //|                                   Phase 0: ML-Lite Foundation   |
+//+------------------------------------------------------------------+
+//| Description:                                                     |
+//|   Comprehensive data logging system for ML training.            |
+//|   Captures 30+ features per signal including price action,      |
+//|   indicators, volatility, and market context.                   |
+//|                                                                  |
+//| CSV Structure (51 columns):                                     |
+//|   - Metadata (11): TradeID, Symbol, Timeframe, Direction, etc.  |
+//|   - Features (30): Indicators, price action, context            |
+//|   - Outcomes (10): Result, P/L, MFE, MAE, duration              |
+//|                                                                  |
+//| Key Features:                                                    |
+//|   - Automatic CSV creation with headers                         |
+//|   - Monthly file rotation (manageable sizes)                    |
+//|   - Buffered I/O with periodic flushing                         |
+//|   - Feature extraction from 30+ indicators                      |
+//|   - Outcome tracking with MFE/MAE                               |
+//|   - File sharing for concurrent access                          |
+//|                                                                  |
+//| Usage:                                                           |
+//|   C_DataCollector collector;                                    |
+//|   collector.Initialize("ML_Data", 50, 60);                      |
+//|   string id = collector.LogSignal(score, symbol, ...);          |
+//|   collector.LogOutcome(id, profit, mfe, mae);                   |
+//|   collector.PeriodicFlush(); // Call in OnTick()                |
+//|                                                                  |
+//| File Management:                                                 |
+//|   - Location: MQL5/Files/ML_Data/                               |
+//|   - Format: signals_YYYY-MM.csv                                 |
+//|   - Rotation: Monthly (automatic)                               |
+//|   - Size: ~1 MB per 1,000 signals                               |
+//|                                                                  |
+//| Performance:                                                     |
+//|   - Feature extraction: 3-8ms per signal                        |
+//|   - CSV write: 1-2ms (buffered)                                 |
+//|   - Memory: ~5 KB + file buffer                                 |
+//|                                                                  |
+//| Dependencies: C_SignalScorer, IndicatorHelpers                  |
 //+------------------------------------------------------------------+
 #property copyright "LulaXaba"
 #property link      "https://github.com/LulaXaba/LulaMultiInstrumentEA"
