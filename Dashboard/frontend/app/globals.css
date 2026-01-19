@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-terminal-grid;
+  }
+  
+  body {
+    @apply bg-terminal-black text-white font-mono text-xs antialiased;
+  }
+}
+
+@layer components {
+  .terminal-card {
+    @apply bg-terminal-darker border border-terminal-grid rounded-none p-4;
+  }
+  
+  .terminal-header {
+    @apply text-terminal-gray uppercase tracking-wider text-[10px] mb-2;
+  }
+  
+  .metric-value {
+    @apply text-2xl font-bold tracking-tight;
+  }
+  
+  .positive {
+    @apply text-terminal-green;
+  }
+  
+  .negative {
+    @apply text-terminal-crimson;
+  }
+  
+  .neutral {
+    @apply text-terminal-blue;
+  }
+  
+  .terminal-grid {
+    @apply grid gap-3;
+  }
+  
+  .status-active {
+    @apply bg-terminal-green bg-opacity-20 text-terminal-green border border-terminal-green;
+  }
+  
+  .status-hold {
+    @apply bg-terminal-yellow bg-opacity-20 text-terminal-yellow border border-terminal-yellow;
+  }
+  
+  .status-halted {
+    @apply bg-terminal-crimson bg-opacity-20 text-terminal-crimson border border-terminal-crimson;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-terminal-black;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-terminal-grid;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-terminal-gray-dark;
+}
+
+/* Glow effects */
+.glow-green {
+  text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+}
+
+.glow-red {
+  text-shadow: 0 0 10px rgba(255, 8, 68, 0.5);
+}
