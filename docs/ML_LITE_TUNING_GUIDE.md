@@ -1,7 +1,7 @@
 # ML-Lite Parameter Tuning Guide
 
-**Version**: 1.0  
-**Last Updated**: January 7, 2026
+**Version**: 1.1  
+**Last Updated**: January 21, 2026
 
 ---
 
@@ -256,6 +256,83 @@ else if(Symbol() == "GBPUSD")
 
 ---
 
+## Outcome Analysis for Tuning
+
+### Using MFE/MAE Data
+
+**MFE (Max Favorable Excursion)** and **MAE (Max Adverse Excursion)** help identify optimal trade management:
+
+#### Analyzing MFE Patterns
+
+**High MFE, Low Final Profit**:
+- **Problem**: Exiting too early, missing potential
+- **Solution**: Widen TP or use trailing stop
+- **Example**: MFE=80 pips, Final=+30 pips → missed 50 pips
+
+**Low MFE, Positive Final**:
+- **Interpretation**: Good exits, price didn't move much
+- **Action**: Keep current settings
+- **Example**: MFE=35 pips, Final=+32 pips → near-optimal
+
+#### Analyzing MAE Patterns
+
+**High MAE Before Win**:
+- **Problem**: SL might be too tight
+- **Solution**: Widen SL or improve entry timing
+- **Example**: MAE=-45 pips, Final=+30 pips → risky win
+
+**High MAE Before Loss**:
+- **Interpretation**: Trade went wrong immediately
+- **Action**: Review entry signals, tighten filtering
+- **Example**: MAE=-60 pips, Final=-50 pips → bad setup
+
+### Threshold Adjustment Based on Outcomes
+
+**If HIGH tier has high MAE**:
+→ Scoring may favor risky setups  
+→ Increase threshold to 0.70+
+
+**If MEDIUM tier has better MFE/MAE ratio**:
+→ High tier too selective  
+→ Decrease threshold to 0.55
+
+**If LOW tier occasionally wins with good MFE**:
+→ Consider lowering threshold  
+→ Test 0.50 for more opportunities
+
+### Exit Reason Analysis
+
+Check CSV `ExitReason` column:
+
+**Mostly "TP"**:
+- ✅ Good: Hitting targets
+- Action: Consider tighter TP if MFE shows room
+
+**Mostly "SL"**:
+- ❌ Problem: Too many stopped out
+- Action: Widen SL or raise threshold
+
+**Mostly "MANUAL"**:
+- ⚠️ Review: Manual intervention needed
+- Action: Check why trades aren't closing naturally
+
+### Win Rate by Score Range
+
+Analyze CSV to find "sweet spot":
+
+```python
+# Example analysis
+Score 0.50-0.55: WR=52%, PF=1.1 → Too low
+Score 0.55-0.60: WR=61%, PF=1.7 → Good
+Score 0.60-0.65: WR=68%, PF=2.1 → Excellent
+Score 0.65-0.70: WR=71%, PF=2.4 → Best
+Score 0.70+:     WR=69%, PF=2.2 → Too selective (few signals)
+```
+
+**Optimal threshold**: 0.65 (best WR+volume balance)
+
+---
+
 ## Common Scenarios
 
 ### Scenario 1: Not Enough Signals
@@ -341,4 +418,6 @@ A: Either threshold is wrong OR baseline was already optimal. Try different thre
 
 ---
 
-**Version**: 1.0 (2026-01-07)
+**Version History**:
+- v1.1 (2026-01-21): Added outcome analysis section with MFE/MAE interpretation, exit reason analysis, and threshold adjustment based on trade outcomes
+- v1.0 (2026-01-07): Initial release

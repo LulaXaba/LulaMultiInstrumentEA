@@ -1,4 +1,4 @@
-﻿//+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
 //|                                             LulaEA_Automated.mq5 |
 //|                                  Copyright 2025, MetaQuotes Ltd. |
 //|                                             https://www.mql5.com |
@@ -54,6 +54,23 @@ C_SignalScorer   g_SignalScorer;
 C_PerformanceTracker g_PerformanceTracker;
 
 //+------------------------------------------------------------------+
+//| Trade Tracking Structure for Outcome Logging                     |
+//+------------------------------------------------------------------+
+struct ActiveTrade
+{
+   string tradeId;        // Links to CSV signal (TradeID)
+   ulong ticket;          // MT5 position ticket
+   int direction;         // OP_BUY or OP_SELL
+   double entryPrice;     // Actual entry price
+   datetime entryTime;    // When position opened
+   double initialSL;      // Original stop loss
+   double initialTP;      // Original take profit
+   double score;          // Signal score (for performance tracking)
+};
+
+ActiveTrade g_ActiveTrades[];  // Track all open positions for outcome logging
+
+//+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
@@ -105,7 +122,7 @@ int OnInit()
            }
          else
            {
-            Print("✅ ML Data Collection enabled");
+            Print("? ML Data Collection enabled");
            }
         }
       
@@ -118,7 +135,7 @@ int OnInit()
            }
          else
            {
-            Print("✅ ML-Lite Filtering enabled (Threshold: ", InpMLScoreThreshold, ")");
+            Print("? ML-Lite Filtering enabled (Threshold: ", InpMLScoreThreshold, ")");
            }
         }
      }
@@ -166,7 +183,7 @@ void OnTick()
       g_DataCollector.PeriodicFlush();
      }
    
-   //--- 1.6. Periodic Dashboard (every 6 hours)
+   //--- 1.6. Periodic Dashboard (every 6 hours)Yo
    static datetime lastDashboard = 0;
    if(InpMLLiteEnabled && (TimeCurrent() - lastDashboard) >= 21600)
      {
@@ -448,3 +465,182 @@ void CheckForNewTrade()
      }
   }
 
+//+------------------------------------------------------------------+
+//| Helper Functions for Trade Outcome Tracking                      |
+//+------------------------------------------------------------------+
+
+//+------------------------------------------------------------------+
+//| Store link between CSV TradeID and MT5 position ticket           |
+//+------------------------------------------------------------------+
+void StoreActiveTradeLink(string tradeId, ulong ticket, int direction, 
+                         double entry, double sl, double tp, double signalScore)
+{
+   int size = ArraySize(g_ActiveTrades);
+   ArrayResize(g_ActiveTrades, size + 1);
+   
+   g_ActiveTrades[size].tradeId = tradeId;
+   g_ActiveTrades[size].ticket = ticket;
+   g_ActiveTrades[size].direction = direction;
+   g_ActiveTrades[size].entryPrice = entry;
+   g_ActiveTrades[size].entryTime = TimeCurrent();
+   g_ActiveTrades[size].initialSL = sl;
+   g_ActiveTrades[size].initialTP = tp;
+   g_ActiveTrades[size].score = signalScore;
+   
+   PrintFormat("?? Linked TradeID %s ? Ticket %I64u", tradeId, ticket);
+}
+
+//+------------------------------------------------------------------+
+//| Remove trade from active tracking array                          |
+//+------------------------------------------------------------------+
+void RemoveActiveTradeByIndex(int index)
+{
+   int size = ArraySize(g_ActiveTrades);
+   if(index < 0 || index >= size) return;
+   
+   // Shift remaining elements
+   for(int i = index; i < size - 1; i++)
+   {
+      g_ActiveTrades[i] = g_ActiveTrades[i + 1];
+   }
+   
+   ArrayResize(g_ActiveTrades, size - 1);
+}
+
+//+------------------------------------------------------------------+
+//| Update MFE/MAE for all open positions                            |
+//+------------------------------------------------------------------+
+void UpdateMFE_MAE()
+{
+   for(int i = 0; i < ArraySize(g_ActiveTrades); i++)
+   {
+      if(PositionSelectByTicket(g_ActiveTrades[i].ticket))
+      {
+         double currentPrice =  PositionGetDouble(POSITION_PRICE_CURRENT);
+         g_DataCollector.UpdateMFE_MAE(g_ActiveTrades[i].tradeId, 
+                                       currentPrice, 
+                                       g_ActiveTrades[i].direction);
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Check for closed positions and log outcomes                      |
+//+------------------------------------------------------------------+
+void CheckClosedPositions()
+{
+   // Select history for last 24 hours
+   datetime fromTime = TimeCurrent() - 86400;
+   HistorySelect(fromTime, TimeCurrent());
+   
+   // Check each active trade to see if it's still open
+   for(int i = ArraySize(g_ActiveTrades) - 1; i >= 0; i--)
+   {
+      // Check if position still exists
+      if(!PositionSelectByTicket(g_ActiveTrades[i].ticket))
+      {
+         // Position closed - log the outcome
+         LogTradeOutcome(g_ActiveTrades[i]);
+         
+         // Remove from active trades array
+         RemoveActiveTradeByIndex(i);
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Log trade outcome to CSV when position closes                    |
+//+------------------------------------------------------------------+
+void LogTradeOutcome(ActiveTrade &trade)
+{
+   TradeOutcome outcome;
+   outcome.tradeId = trade.tradeId;
+   outcome.executed = true;
+   outcome.actualEntry = trade.entryPrice;
+   outcome.entryTime = trade.entryTime;
+   
+   // Initialize defaults
+   outcome.exitPrice = 0;
+   outcome.exitTime = 0;
+   outcome.profitCurrency = 0;
+   outcome.profitPips = 0;
+   outcome.outcome = "UNKNOWN";
+   outcome.exitReason = "UNKNOWN";
+   outcome.mfe = 0;
+   outcome.mae = 0;
+   
+   // Find the closing deal in history
+   int totalDeals = HistoryDealsTotal();
+   bool foundExit = false;
+   
+   for(int i = totalDeals - 1; i >= 0; i--)
+   {
+      ulong dealTicket = HistoryDealGetTicket(i);
+      if(dealTicket == 0) continue;
+      
+      ulong positionId = HistoryDealGetInteger(dealTicket, DEAL_POSITION_ID);
+      long dealEntry = HistoryDealGetInteger(dealTicket, DEAL_ENTRY);
+      
+      if(positionId == trade.ticket && dealEntry == DEAL_ENTRY_OUT)
+      {
+         // Found the exit deal
+         outcome.exitPrice = HistoryDealGetDouble(dealTicket, DEAL_PRICE);
+         outcome.exitTime = (datetime)HistoryDealGetInteger(dealTicket, DEAL_TIME);
+         outcome.profitCurrency = HistoryDealGetDouble(dealTicket, DEAL_PROFIT);
+         
+         // Calculate profit in pips
+         double pipValue = _Point * 10; // Standard pip calculation
+         if(trade.direction == OP_BUY)
+            outcome.profitPips = (outcome.exitPrice - trade.entryPrice) / pipValue;
+         else
+            outcome.profitPips = (trade.entryPrice - outcome.exitPrice) / pipValue;
+         
+         // Determine outcome
+         if(outcome.profitPips > 1.0)
+            outcome.outcome = "WIN";
+         else if(outcome.profitPips < -1.0)
+            outcome.outcome = "LOSS";
+         else
+            outcome.outcome = "BREAKEVEN";
+         
+         // Determine exit reason
+         double tolerance = _Point * 5; // 5 points tolerance
+         if(MathAbs(outcome.exitPrice - trade.initialTP) < tolerance)
+            outcome.exitReason = "TP";
+         else if(MathAbs(outcome.exitPrice - trade.initialSL) < tolerance)
+            outcome.exitReason = "SL";
+         else
+            outcome.exitReason = "MANUAL";
+         
+         foundExit = true;
+         break;
+      }
+   }
+   
+   if(!foundExit)
+   {
+      Print("?? Warning: Could not find exit deal for ticket ", trade.ticket);
+      outcome.outcome = "UNKNOWN";
+      outcome.exitReason = "NOTFOUND";
+   }
+   
+   // Log outcome to CSV
+   bool success = g_DataCollector.LogOutcome(trade.tradeId, outcome);
+   
+   if(success)
+   {
+      PrintFormat("? Logged outcome: %s | %s | %.1f pips | $%.2f | %s", 
+                  trade.tradeId, outcome.outcome, outcome.profitPips, 
+                  outcome.profitCurrency, outcome.exitReason);
+      
+      // Update performance tracker if enabled
+      if(InpMLLiteEnabled)
+      {
+         g_PerformanceTracker.RecordOutcome(trade.score, outcome.outcome == "WIN", outcome.profitPips);
+      }
+   }
+   else
+   {
+      Print("? ERROR: Failed to log outcome for TradeID: ", trade.tradeId);
+   }
+}

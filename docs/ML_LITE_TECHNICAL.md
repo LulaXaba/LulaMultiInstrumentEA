@@ -1,7 +1,7 @@
 # ML-Lite Technical Documentation
 
-**Version**: 1.0  
-**Last Updated**: January 7, 2026  
+**Version**: 1.1  
+**Last Updated**: January 21, 2026  
 **Audience**: Developers & Advanced Users
 
 ---
@@ -50,7 +50,7 @@
 | Component | Purpose | Size | Dependencies |
 |-----------|---------|------|--------------|
 | C_SignalScorer | Evaluate signal quality (0.0-1.0) | 1,200 lines | IndicatorHelpers |
-| C_DataCollector | Log signals to CSV with 30+ features | 820 lines | C_SignalScorer |
+| C_DataCollector | Log signals to CSV with 40+ features | 905 lines | C_SignalScorer |
 | C_PerformanceTracker | Track metrics by score tier | 650 lines | None |
 
 ### Data Flow
@@ -82,7 +82,7 @@
 ### C_SignalScorer
 
 **Location**: `Core/ML/C_SignalScorer.mqh`  
-**Purpose**: Evaluates signal quality using 20 scoring factors  
+**Purpose**: Evaluates signal quality using 40 scoring factors across 5 categories  
 **Thread-Safe**: Yes  
 **State**: Stateless (can be shared)
 
@@ -121,7 +121,8 @@ if(!collector.Initialize("ML_Data", 50, 60))
 **Key Methods**:
 - `Initialize(path, maxSizeMB, flushMin)` - Setup
 - `LogSignal()` - Write signal to CSV
-- `LogOutcome()` - Update trade result
+- `LogOutcome()` - Update trade result (WIN/LOSS/MFE/MAE)
+- `UpdateMFE_MAE()` - Track running P/L during trade
 - `PeriodicFlush()` - Save to disk
 - `Shutdown()` - Clean close
 
@@ -315,6 +316,128 @@ g_PerformanceTracker.RecordOutcome(
    pips
 );
 ```
+
+### C_DataCollector::LogOutcome()
+
+**Signature**:
+```cpp
+bool LogOutcome(
+   string tradeId,
+   TradeOutcome outcome
+)
+```
+
+**Parameters**:
+- `tradeId`: Signal ID returned from LogSignal()
+- `outcome`: TradeOutcome struct with result data
+
+**TradeOutcome Structure**:
+```cpp
+struct TradeOutcome
+{
+   string tradeId;          // Must match original signal ID
+   bool executed;           // Was trade actually executed?
+   
+   // Entry details
+   double actualEntry;      // Actual entry price
+   datetime entryTime;      // Entry timestamp
+   
+   // Performance metrics
+   double mfe;              // Max Favorable Excursion (pips)
+   double mae;              // Max Adverse Excursion (pips)
+   
+   // Exit details
+   double exitPrice;        // Closing price
+   datetime exitTime;       // Exit timestamp
+   double profitPips;       // Final P/L in pips
+   double profitCurrency;   // Final P/L in account currency
+   
+   // Classification
+   string outcome;          // "WIN", "LOSS", or "BREAKEVEN"
+   string exitReason;       // "TP", "SL", "MANUAL", etc.
+};
+```
+
+**Returns**: `true` if outcome logged successfully, `false` on error
+
+**Side Effects**:
+- Updates CSV row with outcome data
+- Writes to file immediately or buffers
+- Logs confirmation message
+
+**Usage Example**:
+```cpp
+// When position closes
+TradeOutcome outcome;
+outcome.tradeId = originalTradeId;      // From LogSignal()
+outcome.executed = true;
+outcome.actualEntry = 1.09000;
+outcome.entryTime = TimeCurrent();
+outcome.exitPrice = 1.09450;
+outcome.exitTime = TimeCurrent();
+outcome.profitPips = 45.0;
+outcome.profitCurrency = 112.50;
+outcome.mfe = 52.1;                     // Best profit seen
+outcome.mae = -8.3;                     // Worst drawdown
+outcome.outcome = "WIN";
+outcome.exitReason = "TP";
+
+bool success = g_DataCollector.LogOutcome(originalTradeId, outcome);
+if(success)
+{
+   Print("Logged outcome: ", outcome.outcome);
+}
+```
+
+### C_DataCollector::UpdateMFE_MAE()
+
+**Signature**:
+```cpp
+void UpdateMFE_MAE(
+   string tradeId,
+   double currentPrice,
+   int direction
+)
+```
+
+**Parameters**:
+- `tradeId`: Signal ID from LogSignal()
+- `currentPrice`: Current market price  
+- `direction`: `OP_BUY` or `OP_SELL` (trade direction)
+
+**Purpose**: Continuously tracks the best and worst unrealized P/L during an open trade
+
+**Algorithm**:
+1. Calculate current unrealized P/L in pips
+2. If P/L > current MFE → update MFE
+3. If P/L < current MAE → update MAE
+4. Store in memory (written to CSV on position close)
+
+**Call Frequency**: Every tick for open positions
+
+**Usage Example**:
+```cpp
+// In OnTick() - track all open positions
+for(int i = 0; i < ArraySize(g_ActiveTrades); i++)
+{
+   if(PositionSelectByTicket(g_ActiveTrades[i].ticket))
+   {
+      double currentPrice = PositionGetDouble(POSITION_PRICE_CURRENT);
+      
+      g_DataCollector.UpdateMFE_MAE(
+         g_ActiveTrades[i].tradeId,    // Signal ID
+         currentPrice,                  // Current price
+         g_ActiveTrades[i].direction    // OP_BUY or OP_SELL
+      );
+   }
+}
+```
+
+**MFE/MAE Interpretation**:
+- **High MFE, Low MAE**: Trade went in your favor quickly (good)
+- **Low MFE, High MAE**: Trade struggled, eventual profit was lucky
+- **High MFE, High MAE**: Trade had large swings (volatility)
+- **Low MFE, Low MAE**: Trade stayed near entry (tight stop or quick exit)
 
 ---
 
@@ -640,6 +763,7 @@ virtual void OnTradeExecuted(string tradeId, double score)
 
 ## Version History
 
+- v1.1 (2026-01-21): Added outcome tracking (LogOutcome, UpdateMFE_MAE), updated to 40+ features, enhanced API documentation
 - v1.0 (2026-01-07): Initial release
 
 ---

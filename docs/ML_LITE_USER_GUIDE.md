@@ -1,8 +1,8 @@
 # ML-Lite User Guide
 
-**Version**: 1.0  
-**Last Updated**: January 7, 2026  
-**Phase**: Phase 0 - ML-Lite Foundation
+**Version**: 1.1  
+**Last Updated**: January 21, 2026  
+**Phase**: Phase 0 - ML-Lite Foundation (With Outcome Tracking)
 
 ---
 
@@ -25,10 +25,11 @@
 ### What is ML-Lite?
 
 ML-Lite is an intelligent signal filtering system that improves your EA's performance by:
-- **Scoring every signal** (0.0-1.0) based on 20+ factors
+- **Scoring every signal** (0.0-1.0) based on 40+ factors across 5 categories
 - **Filtering low-quality signals** below your threshold
 - **Scaling risk** for high-confidence trades
 - **Tracking performance** by score tier
+- **Logging trade outcomes** (WIN/LOSS, profit, MFE/MAE)
 - **Providing dashboards** every 6 hours
 
 ### Key Benefits
@@ -202,7 +203,7 @@ If results are good, experiment with:
 
 ### Signal Scoring System
 
-Every signal is evaluated across **5 categories** with **20 factors**:
+Every signal is evaluated across **5 categories** with **40+ factors**:
 
 #### 1. Trend Alignment (25% weight)
 - HTF/MTF trend agreement
@@ -274,6 +275,107 @@ Signals are categorized into 3 tiers:
    
 6. Execute trade with (potentially scaled) lot size
 ```
+
+### Data Collection & Outcome Tracking
+
+ML-Lite automatically logs comprehensive data for every signal and trade:
+
+#### What Gets Logged
+
+**For Every Signal** (regardless of filtering):
+- Unique Signal ID (timestamp-based)
+- Signal metadata (symbol, timeframe, direction, timestamp)
+- Signal score and recommendation
+- All 40+ extracted features (indicators, price action, context)
+- Proposed trade setup (entry, SL, TP, R:R ratio)
+
+**For Executed Trades** (after position closes):
+- Actual entry price and time
+- Exit price and time
+- Profit/loss in pips and currency
+- Outcome classification (WIN/LOSS/BREAKEVEN)
+- Exit reason (TP/SL/MANUAL)
+- Max Favorable Excursion (MFE) - best unrealized profit
+- Max Adverse Excursion (MAE) - worst unrealized loss
+
+#### CSV File Structure
+
+Data is saved monthly in `MQL5/Files/ML_Data/signals_YYYY-MM.csv`:
+
+**File Naming**: `signals_2026-01.csv` (January 2026)  
+**Format**: CSV (comma-separated)  
+**Columns**: 51 total (11 metadata + 30 features + 10 outcomes)
+
+**Example CSV Row**:
+```
+20260121_143052_789,2026.01.21 14:30:52,EURUSD,16385,0,0.6785,2,1.17450,1.17250,1.17950,2.5,...[features]...,1,1.17455,2026.01.21 15:45:12,WIN,TP,45.2,112.50,52.1,-8.3
+```
+
+**field** | **meaning**
+- TradeID: `20260121_143052_789`
+- Score: `0.6785`  
+- Executed: `1` (yes)
+- Outcome: `WIN`
+- Exit Reason: `TP` (Take Profit hit)
+- Profit: `45.2 pips`, `$112.50`
+
+#### Feature Categories Logged
+
+**1. Trend Features (8)**:
+- ADX(14), ADX(20)
+- ATR normalized
+- MA slopes (20, 50, 200)
+- Trend duration
+- HTF alignment
+
+**2. Momentum Features (7)**:
+- RSI(14)
+- MACD main/signal
+- Stochastic %K/%D
+- ROC (Rate of Change)
+- Williams %R
+
+**3. Volatility Features (5)**:
+- ATR(14)
+- Historical volatility (20-bar)
+- Bollinger Band width
+- BB position
+- True Range ratio
+
+**4. Price Action Features (5)**:
+- Distance from 50-bar high/low
+- Candle body ratio
+- Consecutive bars
+- Price vs MA50 distance
+
+**5. Market Context Features (5)**:
+- Trading session (Asian/London/NY/Overlap)
+- Spread (pips)
+- Hour (GMT)
+- Day of week
+- Volatility regime (Low/Med/High)
+
+**Total**: 30 indicator features + 11 metadata + 10 outcome fields = **51 columns**
+
+#### How Outcome Tracking Works
+
+When a trade **closes** (TP/SL/manual):
+
+1. EA detects position no longer exists
+2. Searches trade history for closing deal
+3. Calculates final metrics (profit, duration, MFE/MAE)
+4. Determines outcome classification:
+   - **WIN**: Profit > 1 pip
+   - **LOSS**: Loss > 1 pip  
+   - **BREAKEVEN**: Between -1 and +1 pip
+5. Determines exit reason:
+   - **TP**: Exit price within 5 points of Take Profit
+   - **SL**: Exit price within 5 points of Stop Loss
+   - **MANUAL**: Any other closure
+6. Updates CSV row with outcome data
+7. Logs to Experts tab: `✅ Logged outcome: [ID] | WIN | +45.2 pips | $112.50 | TP`
+
+**Important**: Only trades opened **after enabling outcome tracking** will have complete outcome data. Pre-existing open positions won't be tracked.
 
 ---
 
@@ -552,6 +654,21 @@ A: Only after confirming filtering improves your results (after 2+ weeks).
 **Q: What if calibration shows "NO"?**  
 A: The scoring may need adjustment - collect more data and review tier performance.
 
+**Q: How does outcome tracking work?**  
+A: When a position closes, the EA automatically logs WIN/LOSS, profit/loss, exit reason, MFE, and MAE back to the CSV file.
+
+**Q: Will old trades get outcome data?**  
+A: No, only trades opened AFTER outcome tracking was enabled will have complete outcome data logged.
+
+**Q: Where can I see trade outcomes?**  
+A: In the CSV file (`ML_Data/signals_YYYY-MM.csv`) - outcome columns will be populated when trades close.
+
+**Q: What is MFE and MAE?**  
+A: **MFE** (Max Favorable Excursion) = best unrealized profit during trade. **MAE** (Max Adverse Excursion) = worst unrealized loss. Both help analyze trade management.
+
+**Q: How long until I see outcome data?**  
+A: Immediately after your first trade closes. Scalping trades: minutes to hours. Swing trades: days.
+
 ---
 
 ## Next Steps
@@ -569,4 +686,5 @@ A: The scoring may need adjustment - collect more data and review tier performan
 ---
 
 **Version History**:
+- v1.1 (2026-01-21): Added outcome tracking, updated feature count to 40+, enhanced data collection documentation
 - v1.0 (2026-01-07): Initial release
