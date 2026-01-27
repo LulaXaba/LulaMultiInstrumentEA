@@ -997,7 +997,7 @@ double C_SignalScorer::ScoreMarketRegime(string symbol, ENUM_TIMEFRAMES tf)
    double bb_lower = GetBands(symbol, tf, 20, 2, 0, 1, 2, 1);
    double bb_middle = GetBands(symbol, tf, 20, 2, 0, 1, 0, 1);
    
-   double bb_width = (bb_upper - bb_lower) / bb_middle;
+   double bb_width = (bb_middle > 0) ? (bb_upper - bb_lower) / bb_middle : 0.0;
    
    // Trending market (ADX > 25, wider BBs): 1.0
    // Transitioning (ADX 20-25): 0.7
