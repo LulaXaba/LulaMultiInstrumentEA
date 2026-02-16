@@ -60,6 +60,21 @@ enum ENUM_HARMONIC_PATTERN
    HARMONIC_WHITE_SWAN
   };
 
+//--- 🆕 WEEK 4: Strategy Types for Dual-Strategy System
+enum ENUM_STRATEGY_TYPE
+  {
+   STRATEGY_DAY_TRADING = 1000,    // Base magic number for day trading
+   STRATEGY_SWING_TRADING = 2000   // Base magic number for swing trading
+  };
+
+//--- 🆕 WEEK 4: Conflict Resolution Modes
+enum ENUM_CONFLICT_MODE
+  {
+   CONFLICT_ALLOW_HEDGING,         // Allow opposite positions (day buy + swing sell)
+   CONFLICT_SWING_PRIORITY,        // Swing trades block day trades
+   CONFLICT_SAME_DIRECTION_ONLY    // Only allow aligned trades (recommended)
+  };
+
 // ---
 // --- SWING POINT STRUCTURE (for ZigZag)
 // ---

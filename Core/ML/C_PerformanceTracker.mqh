@@ -95,6 +95,11 @@ private:
    TierMetrics m_lowTier;       // Score < 0.50
    TierMetrics m_overall;       // All combined
    
+   // 🆕 WEEK 4: Per-Strategy Metrics
+   TierMetrics m_dayTradingMetrics;    // Day trading only
+   TierMetrics m_swingTradingMetrics;  // Swing trading only
+   TierMetrics m_legacyMetrics;        // Legacy strategy
+   
    // Historical tracking
    double m_equityCurve[];      // Equity values
    datetime m_equityTimes[];    // Timestamps
@@ -133,8 +138,8 @@ public:
    void Shutdown();
    
    // Record signals & outcomes
-   void RecordSignal(double score, bool wasTaken);
-   void RecordOutcome(double score, bool isWin, double profitPips);
+   void RecordSignal(double score, bool wasTaken, string strategyName = "Legacy");  // 🆕 WEEK 4
+   void RecordOutcome(double score, bool isWin, double profitPips, string strategyName = "Legacy");  // 🆕 WEEK 4
    
    // Query metrics
    TierMetrics GetHighTierMetrics() { return m_highTier; }
@@ -179,6 +184,10 @@ C_PerformanceTracker::C_PerformanceTracker()
    ZeroMemory(m_mediumTier);
    ZeroMemory(m_lowTier);
    ZeroMemory(m_overall);
+   // 🆕 WEEK 4: Initialize strategy metrics
+   ZeroMemory(m_dayTradingMetrics);
+   ZeroMemory(m_swingTradingMetrics);
+   ZeroMemory(m_legacyMetrics);
 }
 
 //+------------------------------------------------------------------+
@@ -231,7 +240,7 @@ void C_PerformanceTracker::Shutdown()
 //+------------------------------------------------------------------+
 //| Record signal generation                                         |
 //+------------------------------------------------------------------+
-void C_PerformanceTracker::RecordSignal(double score, bool wasTaken)
+void C_PerformanceTracker::RecordSignal(double score, bool wasTaken, string strategyName = "Legacy")
 {
    // Update appropriate tier based on score
    if(score >= m_highScoreThreshold)
@@ -269,12 +278,35 @@ void C_PerformanceTracker::RecordSignal(double score, bool wasTaken)
    else
       m_overall.signalsSkipped++;
    CalculateDerivedMetrics(m_overall);
+   
+   // 🆕 WEEK 4: Update strategy-specific metrics
+   if(strategyName == "DayTrading")
+   {
+      m_dayTradingMetrics.signalsGenerated++;
+      if(wasTaken) m_dayTradingMetrics.signalsTaken++;
+      else m_dayTradingMetrics.signalsSkipped++;
+      CalculateDerivedMetrics(m_dayTradingMetrics);
+   }
+   else if(strategyName == "SwingTrading")
+   {
+      m_swingTradingMetrics.signalsGenerated++;
+      if(wasTaken) m_swingTradingMetrics.signalsTaken++;
+      else m_swingTradingMetrics.signalsSkipped++;
+      CalculateDerivedMetrics(m_swingTradingMetrics);
+   }
+   else
+   {
+      m_legacyMetrics.signalsGenerated++;
+      if(wasTaken) m_legacyMetrics.signalsTaken++;
+      else m_legacyMetrics.signalsSkipped++;
+      CalculateDerivedMetrics(m_legacyMetrics);
+   }
 }
 
 //+------------------------------------------------------------------+
 //| Record trade outcome                                             |
 //+------------------------------------------------------------------+
-void C_PerformanceTracker::RecordOutcome(double score, bool isWin, double profitPips)
+void C_PerformanceTracker::RecordOutcome(double score, bool isWin, double profitPips, string strategyName = "Legacy")
 {
    // Update appropriate tier based on score
    if(score >= m_highScoreThreshold)
@@ -367,6 +399,74 @@ void C_PerformanceTracker::RecordOutcome(double score, bool isWin, double profit
    UpdateEquityCurve(m_overall.totalProfit - m_overall.totalLoss);
    
    CalculateDerivedMetrics(m_overall);
+   
+   // 🆕 WEEK 4: Update strategy-specific metrics
+   if(strategyName == "DayTrading")
+   {
+      if(isWin)
+      {
+         m_dayTradingMetrics.wins++;
+         m_dayTradingMetrics.totalProfit += profitPips;
+         if(profitPips > m_dayTradingMetrics.largestWin)
+            m_dayTradingMetrics.largestWin = profitPips;
+      }
+      else if(profitPips < -0.1)
+      {
+         m_dayTradingMetrics.losses++;
+         double lossAmount = MathAbs(profitPips);
+         m_dayTradingMetrics.totalLoss += lossAmount;
+         if(lossAmount > m_dayTradingMetrics.largestLoss)
+            m_dayTradingMetrics.largestLoss = lossAmount;
+      }
+      else
+         m_dayTradingMetrics.breakevens++;
+      
+      CalculateDerivedMetrics(m_dayTradingMetrics);
+   }
+   else if(strategyName == "SwingTrading")
+   {
+      if(isWin)
+      {
+         m_swingTradingMetrics.wins++;
+         m_swingTradingMetrics.totalProfit += profitPips;
+         if(profitPips > m_swingTradingMetrics.largestWin)
+            m_swingTradingMetrics.largestWin = profitPips;
+      }
+      else if(profitPips < -0.1)
+      {
+         m_swingTradingMetrics.losses++;
+         double lossAmount = MathAbs(profitPips);
+         m_swingTradingMetrics.totalLoss += lossAmount;
+         if(lossAmount > m_swingTradingMetrics.largestLoss)
+            m_swingTradingMetrics.largestLoss = lossAmount;
+      }
+      else
+         m_swingTradingMetrics.breakevens++;
+      
+      CalculateDerivedMetrics(m_swingTradingMetrics);
+   }
+   else  // Legacy
+   {
+      if(isWin)
+      {
+         m_legacyMetrics.wins++;
+         m_legacyMetrics.totalProfit += profitPips;
+         if(profitPips > m_legacyMetrics.largestWin)
+            m_legacyMetrics.largestWin = profitPips;
+      }
+      else if(profitPips < -0.1)
+      {
+         m_legacyMetrics.losses++;
+         double lossAmount = MathAbs(profitPips);
+         m_legacyMetrics.totalLoss += lossAmount;
+         if(lossAmount > m_legacyMetrics.largestLoss)
+            m_legacyMetrics.largestLoss = lossAmount;
+      }
+      else
+         m_legacyMetrics.breakevens++;
+      
+      CalculateDerivedMetrics(m_legacyMetrics);
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -673,6 +773,67 @@ string C_PerformanceTracker::GenerateDashboard(int lookbackDays = 7)
                                 m_overall.totalProfit - m_overall.totalLoss);
       dashboard += StringFormat("  Max Drawdown: -%.1f pips\n", m_maxDrawdown);
       dashboard += StringFormat("  Current DD: -%.1f pips\n", m_currentDrawdown);
+   }
+   dashboard += "\n";
+   
+   // 🆕 WEEK 4: STRATEGY BREAKDOWN
+   dashboard += "--- STRATEGY BREAKDOWN ---\n";
+   
+   // Day Trading
+   int dayTrades = m_dayTradingMetrics.wins + m_dayTradingMetrics.losses;
+   dashboard += "DAY TRADING (H4→H1→M15):\n";
+   if(dayTrades > 0)
+   {
+      dashboard += StringFormat("  Trades: %d (%dW/%dL) | Win Rate: %.1f%%\n",
+                               dayTrades,
+                               m_dayTradingMetrics.wins,
+                               m_dayTradingMetrics.losses,
+                               m_dayTradingMetrics.winRate * 100.0);
+      dashboard += StringFormat("  Net P/L: %+.1f pips | PF: %.2f\n",
+                               m_dayTradingMetrics.totalProfit - m_dayTradingMetrics.totalLoss,
+                               m_dayTradingMetrics.profitFactor);
+   }
+   else
+   {
+      dashboard += "  No trades yet\n";
+   }
+   
+   // Swing Trading
+   int swingTrades = m_swingTradingMetrics.wins + m_swingTradingMetrics.losses;
+   dashboard += "SWING TRADING (D1→H4→H1):\n";
+   if(swingTrades > 0)
+   {
+      dashboard += StringFormat("  Trades: %d (%dW/%dL) | Win Rate: %.1f%%\n",
+                               swingTrades,
+                               m_swingTradingMetrics.wins,
+                               m_swingTradingMetrics.losses,
+                               m_swingTradingMetrics.winRate * 100.0);
+      dashboard += StringFormat("  Net P/L: %+.1f pips | PF: %.2f\n",
+                               m_swingTradingMetrics.totalProfit - m_swingTradingMetrics.totalLoss,
+                               m_swingTradingMetrics.profitFactor);
+   }
+   else
+   {
+      dashboard += "  No trades yet\n";
+   }
+   
+   // Legacy
+   int legacyTrades = m_legacyMetrics.wins + m_legacyMetrics.losses;
+   dashboard += "LEGACY STRATEGY:\n";
+   if(legacyTrades > 0)
+   {
+      dashboard += StringFormat("  Trades: %d (%dW/%dL) | Win Rate: %.1f%%\n",
+                               legacyTrades,
+                               m_legacyMetrics.wins,
+                               m_legacyMetrics.losses,
+                               m_legacyMetrics.winRate * 100.0);
+      dashboard += StringFormat("  Net P/L: %+.1f pips | PF: %.2f\n",
+                               m_legacyMetrics.totalProfit - m_legacyMetrics.totalLoss,
+                               m_legacyMetrics.profitFactor);
+   }
+   else
+   {
+      dashboard += "  No trades yet\n";
    }
    dashboard += "\n";
    

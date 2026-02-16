@@ -165,7 +165,8 @@ public:
                     int direction,
                     double entryPrice,
                     double stopLoss,
-                    double takeProfit);
+                    double takeProfit,
+                    string strategyName = "Legacy");  // 🆕 WEEK 4: Strategy identifier
    
    bool LogOutcome(string tradeId, TradeOutcome &outcome);
    
@@ -204,11 +205,27 @@ C_DataCollector::~C_DataCollector()
 //+------------------------------------------------------------------+
 bool C_DataCollector::Initialize(string dataPath, int maxFileSizeMB, int flushIntervalMinutes)
 {
-   m_dataPath = dataPath;
+   // 🆕 WEEK 4: Detect backtest mode and use centralized path
+   bool isTester = MQLInfoInteger(MQL_TESTER);
+   
+   if(isTester)
+   {
+      // Backtest mode - save to common location (navigates out of tester/Agent-* folder)
+      m_dataPath = "..\\..\\..\\MQL5\\Files\\ML_Data_Backtest";
+      Print("🔬 BACKTEST MODE DETECTED");
+      Print("   CSV will be saved to centralized location for easy access");
+   }
+   else
+   {
+      // Live/Demo mode - standard location
+      m_dataPath = dataPath;
+   }
+   
    m_maxFileSizeMB = maxFileSizeMB;
    m_flushIntervalMinutes = flushIntervalMinutes;
    
    Print("Initializing C_DataCollector...");
+   Print("   Mode: ", isTester ? "BACKTEST" : "LIVE/DEMO");
    Print("   Data Path: ", m_dataPath);
    Print("   Max File Size: ", m_maxFileSizeMB, " MB");
    Print("   Flush Interval: ", m_flushIntervalMinutes, " minutes");
@@ -343,6 +360,7 @@ bool C_DataCollector::WriteHeader()
    
    // Metadata columns
    header += "TradeID,Timestamp,Symbol,Timeframe,Direction,";
+   header += "Strategy,";  // 🆕 WEEK 4: Added strategy identifier column
    header += "Score,Recommendation,";
    header += "EntryPrice,StopLoss,TakeProfit,RRRatio,";
    
@@ -764,7 +782,8 @@ void C_DataCollector::ExtractContextFeatures(string symbol, ENUM_TIMEFRAMES tf, 
 //+------------------------------------------------------------------+
 string C_DataCollector::LogSignal(SignalScore &signalScore, string symbol, 
                                    ENUM_TIMEFRAMES timeframe, int direction,
-                                   double entryPrice, double stopLoss, double takeProfit)
+                                   double entryPrice, double stopLoss, double takeProfit,
+                                   string strategyName = "Legacy")  // 🆕 WEEK 4
 {
    if(m_fileHandle == INVALID_HANDLE)
    {
@@ -803,6 +822,7 @@ string C_DataCollector::LogSignal(SignalScore &signalScore, string symbol,
    row += symbol + ",";
    row += IntegerToString(timeframe) + ",";
    row += IntegerToString(direction) + ",";
+   row += strategyName + ",";  // 🆕 WEEK 4: Add strategy identifier
    
    // Signal quality
    row += DoubleToString(signalScore.score, 6) + ",";

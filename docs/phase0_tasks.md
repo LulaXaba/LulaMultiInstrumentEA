@@ -194,6 +194,50 @@
 
 ## Week 4: Refinement, Validation & Documentation (Jan 27 - Feb 2)
 
+### 🆕 **PRIORITY: Pattern Recognition Enhancement** (2 hours)
+- [ ] **[URGENT]** Add missing bullish patterns (HARAMI, PIERCING) to line 266
+- [ ] **[URGENT]** Add missing bearish patterns (HARAMI, DARK_CLOUD) to line 267
+- [ ] Create `GetPatternStrength()` function (Tier 1/2/3 scoring)
+- [ ] Update BUY entry logic to use pattern strength (line 295)
+- [ ] Update SELL entry logic to use pattern strength (line 394)
+- [ ] Backtest pattern enhancement (expect +30% more signals)
+- [ ] **Deliverable:** All 10 Nison patterns utilized
+
+### 🆕 **Dual-Strategy System Implementation** (Days 1-3)
+
+#### **Day 1: Architecture & Strategy Classes**
+- [ ] Add `ENUM_STRATEGY_TYPE` and `ENUM_CONFLICT_MODE` to `Lula_CoreEnums.mqh`
+- [ ] Create `Core/Strategies/C_DayTradingStrategy.mqh` (H4→H1→M15)
+- [ ] Create `Core/Strategies/C_SwingTradingStrategy.mqh` (D1→H4→H1)
+- [ ] Implement triple-timeframe confirmation logic for both
+- [ ] Add magic number generation system (1000s = day, 2000s = swing)
+- [ ] **Deliverable:** Strategy classes compile and implement IStrategy
+
+#### **Day 2: Risk Allocation & Main EA Integration**
+- [ ] Add dual-strategy input parameters to `LulaEA_Automated.mq5`
+- [ ] Implement `GetDayTradingRisk()` - returns 3% solo, 1.5% when swing active
+- [ ] Implement `GetSwingTradingRisk()` - returns 3% solo, 1.5% when day active
+- [ ] Implement `HasActivePosition(ENUM_STRATEGY_TYPE)` with magic number check
+- [ ] Update `OnInit()` to initialize both strategies
+- [ ] Add D1 and H4 timeframes to market analyzer
+- [ ] Create `CheckDayTradingSignals()` function (checks on M15 bar)
+- [ ] Create `CheckSwingTradingSignals()` function (checks on H1 bar)
+- [ ] Implement conflict resolution: `IsAlignedWithSwingTrend()`
+- [ ] Refactor `OnTick()` to call both strategy checks
+- [ ] **Deliverable:** Both strategies operational, no conflicts
+
+#### **Day 3: ML Integration & Backtesting**
+- [ ] Update `C_DataCollector.LogSignal()` to accept strategy name parameter
+- [ ] Add strategy column to CSV output
+- [ ] Update `C_PerformanceTracker` to track per-strategy metrics
+- [ ] Add `StrategyMetrics` struct for day/swing breakdown
+- [ ] Update dashboard to show per-strategy performance
+- [ ] Backtest Day Trading only (EURUSD Jan 2025)
+- [ ] Backtest Swing Trading only (EURUSD Jan 2025)
+- [ ] Backtest Both strategies (EURUSD Jan 2025)
+- [ ] Multi-symbol validation (EURUSD, GBPUSD, XAUUSD)
+- [ ] **Deliverable:** ML tracking includes strategy tags, backtest shows 65%+ WR
+
 ### Performance Optimization
 - [ ] Profile scoring performance (target <10ms per signal)
 - [ ] Optimize factor calculations
@@ -201,9 +245,10 @@
 - [ ] Optimize CSV I/O operations
 - [ ] Cache frequently accessed data
 - [ ] Optimize indicator calculations
+- [ ] **🆕** Optimize dual-strategy signal checking (avoid duplicate analysis)
 
 ### Weight & Threshold Tuning
--[ ] Fine-tune trend alignment weight
+- [ ] Fine-tune trend alignment weight
 - [ ] Fine-tune technical confirmation weight
 - [ ] Fine-tune market context weight
 - [ ] Fine-tune R:R setup weight
@@ -211,6 +256,7 @@
 - [ ] Optimize high-confidence threshold (target 0.70)
 - [ ] Optimize medium-confidence threshold (target 0.50)
 - [ ] Optimize risk multipliers (high vs medium)
+- [ ] **🆕** Optimize day/swing strategy conflict resolution mode
 
 ### Forward Testing (1 Week Minimum)
 - [ ] Deploy to demo account
@@ -237,6 +283,9 @@
 - [ ] Create quick start guide
 - [ ] Add troubleshooting section
 - [ ] Include FAQ
+- [ ] **🆕** Document dual-strategy system (day trading vs swing trading)
+- [ ] **🆕** Explain dynamic risk allocation (3% vs 1.5%+1.5%)
+- [ ] **🆕** Document conflict resolution modes
 
 ### Documentation - Technical
 - [ ] Document C_SignalScorer API
@@ -246,6 +295,9 @@
 - [ ] Document CSV data format
 - [ ] Create integration examples
 - [ ] Document weight tuning process
+- [ ] **🆕** Document C_DayTradingStrategy and C_SwingTradingStrategy APIs
+- [ ] **🆕** Document magic number system
+- [ ] **🆕** Document per-strategy ML tracking
 
 ### Documentation - Tuning Guide
 - [ ] How to optimize thresholds
@@ -278,7 +330,7 @@
 - [ ] Setup performance alerts
 - [ ] Document escalation procedures
 
-**Week 4 Deliverable**: ✅ Phase 0 complete, validated, documented, production-ready
+**Week 4 Deliverable**: ✅ Phase 0 complete with **dual-strategy system**, all 10 patterns enabled, validated, documented, production-ready
 
 ---
 
@@ -290,13 +342,21 @@
 - [ ] Integration tests passing
 - [ ] No compilation errors or warnings
 - [ ] Backward compatible (works with ML-Lite disabled)
+- [ ] **🆕** All 10 candlestick patterns utilized (not just 6)
+- [ ] **🆕** Dual-strategy system operational (Day + Swing)
+- [ ] **🆕** Dynamic risk allocation working (3% or 1.5%+1.5%)
+- [ ] **🆕** Magic number system correctly differentiated
+- [ ] **🆕** Conflict resolution preventing opposite signals
 
 ### Performance Targets (Validated via Forward Test)
-- [ ] Win rate: +5% minimum improvement
+- [ ] Win rate: +5% minimum improvement (target: 65-70% with dual-strategy)
 - [ ] Profit factor: +15% minimum improvement
-- [ ] Max drawdown: -20% reduction minimum
-- [ ] Trade count: Within acceptable range (not over-filtering)
+- [ ] Max drawdown: -20% reduction minimum (target: -50% with diversification)
+- [ ] Trade count: Within acceptable range (expect +35% with patterns + dual strategies)
 - [ ] Data collected: >= 100 signals
+- [ ] **🆕** Day trading win rate: >= 60%
+- [ ] **🆕** Swing trading win rate: >= 70%
+- [ ] **🆕** Strategy correlation: < 0.7 (diversification benefit)
 
 ### Documentation Complete
 - [ ] User guide written
