@@ -210,10 +210,12 @@ bool C_DataCollector::Initialize(string dataPath, int maxFileSizeMB, int flushIn
    
    if(isTester)
    {
-      // Backtest mode - save to common location (navigates out of tester/Agent-* folder)
-      m_dataPath = "..\\..\\..\\MQL5\\Files\\ML_Data_Backtest";
+      // Backtest mode - save to Common Files folder (absolute path - FIXED)
+      string commonPath = TerminalInfoString(TERMINAL_COMMONDATA_PATH);
+      m_dataPath = commonPath + "\\Files\\ML_Data_Backtest";
       Print("🔬 BACKTEST MODE DETECTED");
-      Print("   CSV will be saved to centralized location for easy access");
+      Print("   CSV will be saved to: ", m_dataPath);
+      Print("   Common Files folder for easy access across all backtests");
    }
    else
    {
